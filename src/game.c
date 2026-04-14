@@ -7,8 +7,6 @@
 #include <constants.h>
 #include <renderer.h>
 
-SDL_Rect viewport = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT };
-
 int main(void) {
     Game game = {
         .renderer = NULL,
@@ -54,6 +52,7 @@ int main(void) {
         move(&cam);
 
         draw_camera(&cam, game.renderer);
+        draw_map(game.renderer);
         SDL_RenderPresent(game.renderer);
 
         SDL_Delay(16);
