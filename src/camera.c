@@ -1,8 +1,8 @@
-#include <camera.h>
-#include <constants.h>
 #include <math.h>
 
-#define M_PI 3.14159265358979323846
+#include <map.h>
+#include <camera.h>
+#include <constants.h>
 
 void handle_input(Camera* camera, const Uint8* keys) {
     camera->moveVel     = 0;
@@ -22,17 +22,27 @@ void handle_input(Camera* camera, const Uint8* keys) {
     }
 }
 
+// TODO: Fix issue with walking into two walls if pos is 0. Implement player as circle. Add sliding on walls
 void move(Camera* camera) {
-    camera->x += cosf(camera->angle) * camera->moveVel * MOV_SPEED;
+    // camera->x += cosf(camera->angle) * camera->moveVel * MOV_SPEED;
 
-    if (camera->x < 0 || camera->x > LEVEL_WIDTH) {
-        camera->x -= cosf(camera->angle) * camera->moveVel * MOV_SPEED;
+    double nextX = camera->x + cosf(camera->angle) * camera->moveVel * MOV_SPEED;
+    double nextY = camera->y + sinf(camera->angle) * camera->moveVel * MOV_SPEED;
+
+    int posX = (int) (nextX/ TILE_SIZE);
+    int posY = (int) (camera->y / TILE_SIZE);
+
+    if (posX >= 0 && posX < MAP_WIDTH && posY >= 0 && posY < MAP_HEIGHT && map[posY][posX] == 0) {
+        camera->x = nextX;
+        // printf("Tile: %d %d | value: %d\n", posX, posY, map[posY][posX]);
     }
+    
+    posX = (int) (camera->x / TILE_SIZE);
+    posY = (int) (nextY / TILE_SIZE);
 
-    camera->y += sinf(camera->angle) * camera->moveVel * MOV_SPEED;
-
-    if (camera->y < 0 || camera->y > LEVEL_HEIGHT) {
-        camera->y -= sinf(camera->angle) * camera->moveVel * MOV_SPEED;
+    if (posX >= 0 && posX < MAP_WIDTH && posY >= 0 && posY < MAP_HEIGHT && map[posY][posX] == 0) {
+        camera->y = nextY;
+        // printf("Tile: %d %d | value: %d\n", posX, posY, map[posY][posX]);
     }
 
     camera->angle += camera->rotationVel * ROTATION_SPEED;

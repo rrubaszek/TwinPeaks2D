@@ -15,10 +15,10 @@ int main(void) {
     };
 
     Camera cam = {
-        .x = 0,
-        .y = 0,
+        .x = 400,
+        .y = 500,
         .moveVel = 0,
-        .angle = 0,
+        .angle = 4.7,
         .rotationVel = 0,
     };
 
@@ -51,8 +51,12 @@ int main(void) {
         handle_input(&cam, keys);
         move(&cam);
 
-        draw_camera(&cam, game.renderer);
-        draw_map(game.renderer);
+        // Functions used to debug
+        // draw_map(game.renderer);
+        // draw_camera(&cam, game.renderer);
+
+        raycaster(&cam, game.renderer);
+
         SDL_RenderPresent(game.renderer);
 
         SDL_Delay(16);

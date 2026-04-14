@@ -15,7 +15,12 @@
 
 #define TILE_SIZE 100
 
-#define MOV_SPEED 1
-#define ROTATION_SPEED 0.01
+#define MOV_SPEED 5
+#define ROTATION_SPEED 0.05
+
+#define M_PI 3.14159265358979323846
+#define FOV (M_PI / 3)   // 60 degrees in radians
+
+#define PLAYER_RADIUS 10
 
 #endif // CONSTANTS_H

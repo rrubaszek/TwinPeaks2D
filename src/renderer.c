@@ -20,7 +20,7 @@ void draw_camera(Camera* camera, SDL_Renderer* renderer) {
     SDL_SetRenderDrawColor(renderer, 255, 255, 0, 255);
     SDL_RenderDrawLine(renderer, screen_x, screen_y, end_x, end_y);
 
-    printf("x=%.2f y=%.2f angle=%.2f\n", camera->x, camera->y, camera->angle);
+    // printf("x=%.2f y=%.2f angle=%.2f\n", camera->x, camera->y, camera->angle);
 }
 
 void draw_map(SDL_Renderer* renderer) {
@@ -32,5 +32,88 @@ void draw_map(SDL_Renderer* renderer) {
                 SDL_RenderFillRect(renderer, &wall);
             }
         }
+    }
+}
+
+void raycaster(Camera* camera, SDL_Renderer* renderer) {
+    // Each ray goes through all columns
+    for (int i = 0; i < SCREEN_WIDTH; i++) {
+        // double cameraX = 2.0 * i / SCREEN_WIDTH - 1; //x-coordinate in camera space
+        // double rayAngle = camera->angle + (cameraX * FOV / 2.0);
+        double rayAngle = camera->angle - FOV / 2.0 + (i / (double)SCREEN_WIDTH) * FOV;
+        double rayDirX = cosf(rayAngle);
+        double rayDirY = sinf(rayAngle);
+
+        //which box of the map we're in
+        int mapX = (int)(camera->x / TILE_SIZE);
+        int mapY = (int)(camera->y / TILE_SIZE);
+
+        //length of ray from current position to next x or y-side
+        double sideDistX;
+        double sideDistY;
+
+        //length of ray from one x or y-side to next x or y-side
+        double deltaDistX = (rayDirX == 0) ? 1e30 : fabs(1 / rayDirX);
+        double deltaDistY = (rayDirY == 0) ? 1e30 : fabs(1 / rayDirY);
+
+        //what direction to step in x or y-direction (either +1 or -1)
+        int stepX;
+        int stepY;
+
+        int hit = 0; //was there a wall hit?
+        int side = 0; //was a NS or a EW wall hit?
+
+        double posX = camera->x / TILE_SIZE;
+        double posY = camera->y / TILE_SIZE;
+
+        if (rayDirX < 0) {
+            stepX = -1;
+            sideDistX = (posX - mapX) * deltaDistX;
+        } else {
+            stepX = 1;
+            sideDistX = (mapX + 1.0 - posX) * deltaDistX;
+        }
+
+        if (rayDirY < 0) {
+            stepY = -1;
+            sideDistY = (posY - mapY) * deltaDistY;
+        } else {
+            stepY = 1;
+            sideDistY = (mapY + 1.0 - posY) * deltaDistY;
+        }
+
+        while (hit == 0) {
+            if (sideDistX < sideDistY) {
+                sideDistX += deltaDistX;
+                mapX += stepX;
+                side = 0;
+            } else {
+                sideDistY += deltaDistY;
+                mapY += stepY;
+                side = 1;
+            }
+
+            if (mapX < 0 || mapX >= MAP_WIDTH || mapY < 0 || mapY >= MAP_HEIGHT) {
+                hit = 1;
+                break;
+            }
+
+            if (map[mapY][mapX] == 1) {
+                hit = 1;
+            }
+        }
+
+        double perpWallDist;
+        if (side == 0)
+            perpWallDist = sideDistX - deltaDistX;
+        else
+            perpWallDist = sideDistY - deltaDistY;
+
+        int wall_height = (int)(SCREEN_HEIGHT / perpWallDist);
+        int draw_start  = (SCREEN_HEIGHT - wall_height) / 2;
+        int draw_end    = (SCREEN_HEIGHT + wall_height) / 2;
+
+        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        SDL_RenderDrawLine(renderer, i, draw_start, i, draw_end);
     }
 }
