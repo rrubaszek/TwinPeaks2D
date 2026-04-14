@@ -72,6 +72,9 @@ void sdl_cleanup(Game* game, int exit_code) {
     SDL_DestroyRenderer(game->renderer);
     SDL_DestroyWindow(game->window);
     SDL_Quit();
+
+    printf("Window and renderer closed successfully.\n");
+
     exit(exit_code);
 }
 

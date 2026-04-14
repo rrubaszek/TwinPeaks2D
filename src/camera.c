@@ -22,27 +22,30 @@ void handle_input(Camera* camera, const Uint8* keys) {
     }
 }
 
-// TODO: Fix issue with walking into two walls if pos is 0. Implement player as circle. Add sliding on walls
+// TODO: Fix issue with walking into two walls if pos is 0. Add sliding on walls.
+// Note: For now the bug stays, I don't know what causes it. Just use maps that have walls at (0, i), (j, 0).
 void move(Camera* camera) {
-    // camera->x += cosf(camera->angle) * camera->moveVel * MOV_SPEED;
 
-    double nextX = camera->x + cosf(camera->angle) * camera->moveVel * MOV_SPEED;
-    double nextY = camera->y + sinf(camera->angle) * camera->moveVel * MOV_SPEED;
+    double dx = cosf(camera->angle) * camera->moveVel * MOV_SPEED;
+    double nextX = camera->x + dx;
 
-    int posX = (int) (nextX/ TILE_SIZE);
-    int posY = (int) (camera->y / TILE_SIZE);
+    int posX = (int)((nextX + (dx > 0 ? PLAYER_RADIUS : -PLAYER_RADIUS)) / TILE_SIZE);
+    int posY = (int)(camera->y / TILE_SIZE);
 
-    if (posX >= 0 && posX < MAP_WIDTH && posY >= 0 && posY < MAP_HEIGHT && map[posY][posX] == 0) {
+    if (!is_wall(posX, posY)) {
         camera->x = nextX;
-        // printf("Tile: %d %d | value: %d\n", posX, posY, map[posY][posX]);
+        // printf("X: Tile: %d %d | value: %d\n", posX, posY, map[posY][posX]);
     }
     
-    posX = (int) (camera->x / TILE_SIZE);
-    posY = (int) (nextY / TILE_SIZE);
+    double dy = sinf(camera->angle) * camera->moveVel * MOV_SPEED;
+    double nextY = camera->y + dy;
 
-    if (posX >= 0 && posX < MAP_WIDTH && posY >= 0 && posY < MAP_HEIGHT && map[posY][posX] == 0) {
+    posX = (int)(camera->x / TILE_SIZE);
+    posY = (int)((nextY + (dy > 0 ? PLAYER_RADIUS : -PLAYER_RADIUS)) / TILE_SIZE);
+
+    if (!is_wall(posX, posY)) {
         camera->y = nextY;
-        // printf("Tile: %d %d | value: %d\n", posX, posY, map[posY][posX]);
+        // printf("Y: Tile: %d %d | value: %d\n", posX, posY, map[posY][posX]);
     }
 
     camera->angle += camera->rotationVel * ROTATION_SPEED;
@@ -53,4 +56,7 @@ void move(Camera* camera) {
     if (camera->angle > 2 * M_PI) {
         camera->angle -= 2 * M_PI;
     }
+}
+bool is_wall(int x, int y) {
+    return (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) ? true : map[y][x] == 1;
 }

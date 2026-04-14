@@ -2,6 +2,7 @@
 #define CAMERA_H
 
 #include <SDL2/SDL.h>
+#include <stdbool.h>
 
 /*
 Camera represents a player's view of the game world. Angle is the direction the camera is facing.
@@ -18,5 +19,6 @@ typedef struct {
 
 void handle_input(Camera* camera, const Uint8* keys);
 void move(Camera* camera);
+bool is_wall(int posX, int posY);
 
 #endif // CAMERA_H

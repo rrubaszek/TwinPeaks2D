@@ -5,8 +5,10 @@
 #include <constants.h>
 #include <map.h>
 
+// TODO: Add shading and textures
+
 void draw_camera(Camera* camera, SDL_Renderer* renderer) {
-    int screen_x = (int)(camera->x); // Add * TILE_SIZE?
+    int screen_x = (int)(camera->x);
     int screen_y = (int)(camera->y);
 
     SDL_Rect dot = { screen_x, screen_y, 8, 8 };
@@ -28,10 +30,22 @@ void draw_map(SDL_Renderer* renderer) {
         for (int j = 0; j < MAP_HEIGHT; j++) {
             if (map[j][i] == 1) {
                 SDL_Rect wall = { i * TILE_SIZE, j * TILE_SIZE, TILE_SIZE, TILE_SIZE };
-                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 1);
+                SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
                 SDL_RenderFillRect(renderer, &wall);
             }
         }
+    }
+
+    SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
+
+    for (int i = 0; i <= MAP_WIDTH; i++) {
+        int x = i * TILE_SIZE;
+        SDL_RenderDrawLine(renderer, x, 0, x, MAP_HEIGHT * TILE_SIZE);
+    }
+
+    for (int j = 0; j <= MAP_HEIGHT; j++) {
+        int y = j * TILE_SIZE;
+        SDL_RenderDrawLine(renderer, 0, y, MAP_WIDTH * TILE_SIZE, y);
     }
 }
 
@@ -44,9 +58,12 @@ void raycaster(Camera* camera, SDL_Renderer* renderer) {
         double rayDirX = cosf(rayAngle);
         double rayDirY = sinf(rayAngle);
 
+        double posX = camera->x / TILE_SIZE;
+        double posY = camera->y / TILE_SIZE;
+
         //which box of the map we're in
-        int mapX = (int)(camera->x / TILE_SIZE);
-        int mapY = (int)(camera->y / TILE_SIZE);
+        int mapX = (int)(posX);
+        int mapY = (int)(posY);
 
         //length of ray from current position to next x or y-side
         double sideDistX;
@@ -62,9 +79,6 @@ void raycaster(Camera* camera, SDL_Renderer* renderer) {
 
         int hit = 0; //was there a wall hit?
         int side = 0; //was a NS or a EW wall hit?
-
-        double posX = camera->x / TILE_SIZE;
-        double posY = camera->y / TILE_SIZE;
 
         if (rayDirX < 0) {
             stepX = -1;
@@ -108,6 +122,8 @@ void raycaster(Camera* camera, SDL_Renderer* renderer) {
             perpWallDist = sideDistX - deltaDistX;
         else
             perpWallDist = sideDistY - deltaDistY;
+
+        // double correctedDist = perpWallDist * cos(rayAngle - camera->angle);
 
         int wall_height = (int)(SCREEN_HEIGHT / perpWallDist);
         int draw_start  = (SCREEN_HEIGHT - wall_height) / 2;
