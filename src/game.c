@@ -7,6 +7,7 @@
 #include <constants.h>
 #include <renderer.h>
 
+
 int main(void) {
     Game game = {
         .renderer = NULL,
@@ -68,6 +69,7 @@ int main(void) {
     return 0;
 }
 
+
 void sdl_cleanup(Game* game, int exit_code) {
     SDL_DestroyRenderer(game->renderer);
     SDL_DestroyWindow(game->window);
@@ -77,6 +79,7 @@ void sdl_cleanup(Game* game, int exit_code) {
 
     exit(exit_code);
 }
+
 
 bool sdl_initialize(Game* game) {
     if (SDL_Init(SDL_INIT_EVERYTHING)) {

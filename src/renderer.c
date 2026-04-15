@@ -25,6 +25,7 @@ void draw_camera(Camera* camera, SDL_Renderer* renderer) {
     // printf("x=%.2f y=%.2f angle=%.2f\n", camera->x, camera->y, camera->angle);
 }
 
+
 void draw_map(SDL_Renderer* renderer) {
     for (int i = 0; i < MAP_WIDTH; i++) {
         for (int j = 0; j < MAP_HEIGHT; j++) {
@@ -49,7 +50,9 @@ void draw_map(SDL_Renderer* renderer) {
     }
 }
 
+
 void raycaster(Camera* camera, SDL_Renderer* renderer) {
+
     // Each ray goes through all columns
     for (int i = 0; i < SCREEN_WIDTH; i++) {
         // double cameraX = 2.0 * i / SCREEN_WIDTH - 1; //x-coordinate in camera space
