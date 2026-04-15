@@ -8,8 +8,8 @@
 // TODO: Add shading and textures
 
 void draw_camera(Camera* camera, SDL_Renderer* renderer) {
-    int screen_x = (int)(camera->x);
-    int screen_y = (int)(camera->y);
+    int screen_x = (int)camera->x;
+    int screen_y = (int)camera->y;
 
     SDL_Rect dot = { screen_x, screen_y, 8, 8 };
     SDL_SetRenderDrawColor(renderer, 255, 255, 0 ,255);
@@ -55,18 +55,24 @@ void raycaster(Camera* camera, SDL_Renderer* renderer) {
 
     // Each ray goes through all columns
     for (int i = 0; i < SCREEN_WIDTH; i++) {
-        // double cameraX = 2.0 * i / SCREEN_WIDTH - 1; //x-coordinate in camera space
-        // double rayAngle = camera->angle + (cameraX * FOV / 2.0);
-        double rayAngle = camera->angle - FOV / 2.0 + (i / (double)SCREEN_WIDTH) * FOV;
-        double rayDirX = cosf(rayAngle);
-        double rayDirY = sinf(rayAngle);
+
+        double cameraX = 2 * i / (double)SCREEN_WIDTH - 1;
+
+        double dirX = cos(camera->angle);
+        double dirY = sin(camera->angle);
+
+        double planeX = -dirY * tan(FOV / 2);
+        double planeY =  dirX * tan(FOV / 2);
+
+        double rayDirX = dirX + planeX * cameraX;
+        double rayDirY = dirY + planeY * cameraX;
 
         double posX = camera->x / TILE_SIZE;
         double posY = camera->y / TILE_SIZE;
 
         //which box of the map we're in
-        int mapX = (int)(posX);
-        int mapY = (int)(posY);
+        int mapX = (int)posX;
+        int mapY = (int)posY;
 
         //length of ray from current position to next x or y-side
         double sideDistX;
@@ -126,11 +132,15 @@ void raycaster(Camera* camera, SDL_Renderer* renderer) {
         else
             perpWallDist = sideDistY - deltaDistY;
 
-        // double correctedDist = perpWallDist * cos(rayAngle - camera->angle);
 
         int wall_height = (int)(SCREEN_HEIGHT / perpWallDist);
+
+        if (wall_height > SCREEN_HEIGHT) wall_height = SCREEN_HEIGHT;
+
         int draw_start  = (SCREEN_HEIGHT - wall_height) / 2;
         int draw_end    = (SCREEN_HEIGHT + wall_height) / 2;
+
+        // int colour = wall_height
 
         SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
         SDL_RenderDrawLine(renderer, i, draw_start, i, draw_end);
