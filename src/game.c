@@ -28,6 +28,8 @@ int main(void) {
     }
 
     SDL_Event event;
+    SDL_Rect floor = { 0, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT / 2 };
+    SDL_Rect celling = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT / 2 };
     while (true) {
 
         while (SDL_PollEvent(&event)) {
@@ -55,6 +57,13 @@ int main(void) {
         // Functions used to debug
         // draw_map(game.renderer);
         // draw_camera(&cam, game.renderer);
+
+        // Draw celling and floor before raycaster, which draws the walls
+        SDL_SetRenderDrawColor(game.renderer, 50, 50, 50, 255);
+        SDL_RenderFillRect(game.renderer, &floor);
+
+        SDL_SetRenderDrawColor(game.renderer, 75, 15, 255, 255);
+        SDL_RenderFillRect(game.renderer, &celling);  
 
         raycaster(&cam, game.renderer);
 

@@ -140,9 +140,16 @@ void raycaster(Camera* camera, SDL_Renderer* renderer) {
         int draw_start  = (SCREEN_HEIGHT - wall_height) / 2;
         int draw_end    = (SCREEN_HEIGHT + wall_height) / 2;
 
-        // int colour = wall_height
+        // printf("Wall distance: %f", perpWallDist);
+        // Adjust brightness depending on distance
+        float brightness = 1.0f - (perpWallDist / 10.0f);
+        if (brightness < 0.0f) brightness = 0.0f;
 
-        SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
+        // Right-sided walls should has darker shade than left-sided walls
+        // Check if ray has hit vertical wall
+        float shade = (side == 0 ? 0.9f : 0.7f) * brightness;
+
+        SDL_SetRenderDrawColor(renderer, 255 * shade, 255 * shade, 255 * shade, 255);
         SDL_RenderDrawLine(renderer, i, draw_start, i, draw_end);
     }
 }
