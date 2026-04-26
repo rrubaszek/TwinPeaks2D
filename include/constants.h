@@ -1,6 +1,8 @@
 #ifndef CONSTANTS_H
 #define CONSTANTS_H
 
+// TODO: Write dependent constants as results of others, because now a lot require change if one thing changes
+
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 600
 
@@ -19,5 +21,7 @@
 #define FOV (M_PI / 3)   // 60 degrees in radians
 
 #define PLAYER_RADIUS 10
+
+#define MAX_RENDER_DISTANCE 1600
 
 #endif // CONSTANTS_H
