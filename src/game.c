@@ -1,7 +1,10 @@
 #include <stdio.h>
+#include <errno.h>
+#include <string.h>
 #include <stdbool.h>
 #include <SDL2/SDL.h>
 
+#include <map.h>
 #include <game.h>
 #include <camera.h>
 #include <constants.h>
@@ -9,10 +12,12 @@
 
 
 int main(void) {
+
     Game game = {
         .renderer = NULL,
         .window = NULL,
         .background = NULL, // Later to add some background texture
+        .grid = NULL,
     };
 
     Camera cam = {
@@ -52,10 +57,10 @@ int main(void) {
 
         const Uint8* keys = SDL_GetKeyboardState(NULL);
         handle_input(&cam, keys);
-        move(&cam);
+        move(&cam, game.grid);
 
         // Functions used to debug
-        // draw_map(game.renderer);
+        // draw_map(game.renderer, map);
         // draw_camera(&cam, game.renderer);
 
         // Draw celling and floor before raycaster, which draws the walls
@@ -65,7 +70,7 @@ int main(void) {
         SDL_SetRenderDrawColor(game.renderer, 75, 15, 255, 255);
         SDL_RenderFillRect(game.renderer, &celling);  
 
-        raycaster(&cam, game.renderer);
+        raycaster(&cam, game.renderer, game.grid);
 
         SDL_RenderPresent(game.renderer);
 
@@ -74,7 +79,6 @@ int main(void) {
 
     sdl_cleanup(&game, EXIT_SUCCESS);
 
-    printf("Hello, World!\n");
     return 0;
 }
 
@@ -85,6 +89,11 @@ void sdl_cleanup(Game* game, int exit_code) {
     SDL_Quit();
 
     printf("Window and renderer closed successfully.\n");
+
+    if (game->grid){
+        free_grid(game->grid);
+        printf("Map destroyed successfully\n");
+    }
 
     exit(exit_code);
 }
@@ -108,7 +117,13 @@ bool sdl_initialize(Game* game) {
         return true;
     }
 
-    printf("Window and renderer initialized successfully.\n");
+    game->grid = read_map_from_file("maps/map.txt");
+    if (!game->grid) {
+        printf("Failed to create game grid: %s\n", strerror(errno));
+        return true;
+    }
+
+    printf("Window, renderer and grid initialized successfully.\n");
 
     return false;
 }

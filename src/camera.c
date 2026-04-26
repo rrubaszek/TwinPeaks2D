@@ -24,25 +24,25 @@ void handle_input(Camera* camera, const Uint8* keys) {
 }
 
 
-void move(Camera* camera) {
+void move(Camera* camera, Grid* g) {
 
     double dx = cosf(camera->angle) * camera->moveVel * MOV_SPEED;
     double nextX = camera->x + dx;
 
-    int posX = (int)floor((nextX + (dx > 0 ? PLAYER_RADIUS : -PLAYER_RADIUS)) / TILE_SIZE);
-    int posY = (int)(camera->y / TILE_SIZE);
+    int posX = (int)floor((nextX + (dx > 0 ? PLAYER_RADIUS : -PLAYER_RADIUS)) / g->tile_size);
+    int posY = (int)(camera->y / g->tile_size);
 
-    if (!is_wall(posX, posY)) {
+    if (!is_wall(posX, posY, g)) {
         camera->x = nextX;
     }
     
     double dy = sinf(camera->angle) * camera->moveVel * MOV_SPEED;
     double nextY = camera->y + dy;
 
-    posX = (int)(camera->x / TILE_SIZE);
-    posY = (int)floor((nextY + (dy > 0 ? PLAYER_RADIUS : -PLAYER_RADIUS)) / TILE_SIZE);
+    posX = (int)(camera->x / g->tile_size);
+    posY = (int)floor((nextY + (dy > 0 ? PLAYER_RADIUS : -PLAYER_RADIUS)) / g->tile_size);
 
-    if (!is_wall(posX, posY)) {
+    if (!is_wall(posX, posY, g)) {
         camera->y = nextY;
     }
 
@@ -57,6 +57,6 @@ void move(Camera* camera) {
 }
 
 
-bool is_wall(int x, int y) {
-    return (x < 0 || x >= MAP_WIDTH || y < 0 || y >= MAP_HEIGHT) ? true : map[y][x] == 1;
+bool is_wall(int x, int y, Grid* g) {
+    return (x < 0 || x >= g->w || y < 0 || y >= g->h) ? true : g->map[y][x] == 1;
 }

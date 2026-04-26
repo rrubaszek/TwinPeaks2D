@@ -3,8 +3,14 @@
 
 #include <constants.h>
 
-extern int map[MAP_HEIGHT][MAP_WIDTH];
+typedef struct {
+    int w;
+    int h;
+    int tile_size;
+    int** map;
+} Grid;
 
-// int* map_get_tile(int row, int col);
+Grid* read_map_from_file(const char* filename);
+void free_grid(Grid* g);
 
 #endif // MAP_H

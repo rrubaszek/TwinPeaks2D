@@ -18,7 +18,7 @@ typedef struct {
 } Camera;
 
 void handle_input(Camera* camera, const Uint8* keys);
-void move(Camera* camera);
-bool is_wall(int posX, int posY);
+void move(Camera* camera, Grid* g);
+bool is_wall(int posX, int posY, Grid* g);
 
 #endif // CAMERA_H

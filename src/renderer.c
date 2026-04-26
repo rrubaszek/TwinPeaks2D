@@ -2,8 +2,6 @@
 #include <math.h>
 
 #include <renderer.h>
-#include <constants.h>
-#include <map.h>
 
 // TODO: Add shading and textures
 
@@ -26,11 +24,11 @@ void draw_camera(Camera* camera, SDL_Renderer* renderer) {
 }
 
 
-void draw_map(SDL_Renderer* renderer) {
-    for (int i = 0; i < MAP_WIDTH; i++) {
-        for (int j = 0; j < MAP_HEIGHT; j++) {
-            if (map[j][i] == 1) {
-                SDL_Rect wall = { i * TILE_SIZE, j * TILE_SIZE, TILE_SIZE, TILE_SIZE };
+void draw_map(SDL_Renderer* renderer, const Grid* g) {
+    for (int i = 0; i < g->w; i++) {
+        for (int j = 0; j < g->h; j++) {
+            if (g->map[j][i] == 1) {
+                SDL_Rect wall = { i * g->tile_size, j * g->tile_size, g->tile_size, g->tile_size };
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
                 SDL_RenderFillRect(renderer, &wall);
             }
@@ -39,19 +37,19 @@ void draw_map(SDL_Renderer* renderer) {
 
     SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
 
-    for (int i = 0; i <= MAP_WIDTH; i++) {
-        int x = i * TILE_SIZE;
-        SDL_RenderDrawLine(renderer, x, 0, x, MAP_HEIGHT * TILE_SIZE);
+    for (int i = 0; i <= g->w; i++) {
+        int x = i * g->tile_size;
+        SDL_RenderDrawLine(renderer, x, 0, x, g->h * g->tile_size);
     }
 
-    for (int j = 0; j <= MAP_HEIGHT; j++) {
-        int y = j * TILE_SIZE;
-        SDL_RenderDrawLine(renderer, 0, y, MAP_WIDTH * TILE_SIZE, y);
+    for (int j = 0; j <= g->h; j++) {
+        int y = j * g->tile_size;
+        SDL_RenderDrawLine(renderer, 0, y, g->w * g->tile_size, y);
     }
 }
 
 
-void raycaster(Camera* camera, SDL_Renderer* renderer) {
+void raycaster(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
 
     // Each ray goes through all columns
     for (int i = 0; i < SCREEN_WIDTH; i++) {
@@ -67,8 +65,8 @@ void raycaster(Camera* camera, SDL_Renderer* renderer) {
         double rayDirX = dirX + planeX * cameraX;
         double rayDirY = dirY + planeY * cameraX;
 
-        double posX = camera->x / TILE_SIZE;
-        double posY = camera->y / TILE_SIZE;
+        double posX = camera->x / g->tile_size;
+        double posY = camera->y / g->tile_size;
 
         //which box of the map we're in
         int mapX = (int)posX;
@@ -116,12 +114,12 @@ void raycaster(Camera* camera, SDL_Renderer* renderer) {
                 side = 1;
             }
 
-            if (mapX < 0 || mapX >= MAP_WIDTH || mapY < 0 || mapY >= MAP_HEIGHT) {
+            if (mapX < 0 || mapX >= g->w || mapY < 0 || mapY >= g->h) {
                 hit = 1;
                 break;
             }
 
-            if (map[mapY][mapX] == 1) {
+            if (g->map[mapY][mapX] == 1) {
                 hit = 1;
             }
         }

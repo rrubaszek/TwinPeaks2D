@@ -6,13 +6,8 @@
 #define SCREEN_WIDTH 800
 #define SCREEN_HEIGHT 600
 
-#define MAP_WIDTH 8
-#define MAP_HEIGHT 6
-
 #define FPS 60
 #define FRAME_DELAY (1000 / FPS)
-
-#define TILE_SIZE 100
 
 #define MOV_SPEED 5
 #define ROTATION_SPEED 0.05
