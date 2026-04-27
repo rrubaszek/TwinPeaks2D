@@ -57,10 +57,10 @@ int main(void) {
 
         const Uint8* keys = SDL_GetKeyboardState(NULL);
         handle_input(&cam, keys);
-        move(&cam, game.grid);
+        move(&cam, &game);
 
         // Functions used to debug
-        // draw_map(game.renderer, map);
+        // draw_map(game.renderer, game.grid);
         // draw_camera(&cam, game.renderer);
 
         // Draw celling and floor before raycaster, which draws the walls
@@ -117,7 +117,7 @@ bool sdl_initialize(Game* game) {
         return true;
     }
 
-    game->grid = read_map_from_file("maps/map.txt");
+    game->grid = read_map_from_file("maps/map2.txt");
     if (!game->grid) {
         printf("Failed to create game grid: %s\n", strerror(errno));
         return true;

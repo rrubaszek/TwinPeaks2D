@@ -4,6 +4,8 @@
 #include <SDL2/SDL.h>
 #include <stdbool.h>
 
+#include <game.h>
+
 /*
 Camera represents a player's view of the game world. Angle is the direction the camera is facing.
 moveVel represents the velocity of the camera in the x and y directions, respectively.
@@ -18,7 +20,9 @@ typedef struct {
 } Camera;
 
 void handle_input(Camera* camera, const Uint8* keys);
-void move(Camera* camera, Grid* g);
+void handle_exit(Camera* camera, Game* game, int posX, int posY);
+void move(Camera* camera, Game* game);
 bool is_wall(int posX, int posY, Grid* g);
+bool is_exit(int posX, int posY, Grid* g);
 
 #endif // CAMERA_H

@@ -8,6 +8,7 @@ typedef struct {
     int h;
     int tile_size;
     int** map;
+    char exits[4][16]; // Maximum 16 chars in filename
 } Grid;
 
 Grid* read_map_from_file(const char* filename);

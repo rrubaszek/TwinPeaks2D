@@ -21,6 +21,9 @@ Grid* read_map_from_file(const char* filename) {
             fscanf(fptr, "%d", &g->map[i][j]);
         }
     }
+
+    // Read exits to the next possible maps
+    fscanf(fptr, "%s %s %s %s", g->exits[0], g->exits[1], g->exits[2], g->exits[3]);
     
     fclose(fptr);
 
