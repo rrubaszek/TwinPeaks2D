@@ -64,28 +64,28 @@ void move(Camera* camera, Game* game) {
     }
 }
 
-// TODO: Fix placing a player on new map
+
 void handle_exit(Camera* camera, Game* game, int x, int y) {
     if (strcmp(game->grid->exits[2], "NULL") != 0) {
         Grid* next = read_map_from_file(game->grid->exits[2]);
         free_grid(game->grid);
         game->grid = next;
-        camera->x = game->grid->tile_size;
+        camera->x = 2 * game->grid->tile_size;
     } else if (strcmp(game->grid->exits[3], "NULL") != 0) {
         Grid* next = read_map_from_file(game->grid->exits[3]);
         free_grid(game->grid);
         game->grid = next;
-        camera->x = (game->grid->w - 1) * game->grid->tile_size;
+        camera->x = (game->grid->w - 2) * game->grid->tile_size;
     } else if (strcmp(game->grid->exits[1], "NULL") != 0) {
         Grid* next = read_map_from_file(game->grid->exits[1]);
         free_grid(game->grid);
         game->grid = next;
-        camera->y = game->grid->tile_size;
+        camera->y = 2 * game->grid->tile_size;
     } else if (strcmp(game->grid->exits[0], "NULL") != 0) {
         Grid* next = read_map_from_file(game->grid->exits[0]);
         free_grid(game->grid);
         game->grid = next;
-        camera->y = (game->grid->h - 1) * game->grid->tile_size;
+        camera->y = (game->grid->h - 2) * game->grid->tile_size;
     }
 }
 

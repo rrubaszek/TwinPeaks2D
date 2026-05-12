@@ -117,7 +117,7 @@ bool sdl_initialize(Game* game) {
         return true;
     }
 
-    game->grid = read_map_from_file("maps/map2.txt");
+    game->grid = read_map_from_file("maps/map.txt");
     if (!game->grid) {
         printf("Failed to create game grid: %s\n", strerror(errno));
         return true;
