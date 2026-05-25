@@ -9,7 +9,7 @@
 #define FPS 60
 #define FRAME_DELAY (1000 / FPS)
 
-#define MOV_SPEED 5
+#define MOV_SPEED 10
 #define ROTATION_SPEED 0.05
 
 #define M_PI 3.14159265358979323846

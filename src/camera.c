@@ -37,7 +37,7 @@ void move(Camera* camera, Game* game) {
     }
 
     if(is_exit(posX, posY, game->grid)) {
-        handle_exit(camera, game, posX, posY);
+        handle_exit(camera, game);
     }
     
     double dy = sinf(camera->angle) * camera->moveVel * MOV_SPEED;
@@ -51,7 +51,7 @@ void move(Camera* camera, Game* game) {
     }
 
     if(is_exit(posX, posY, game->grid)) {
-        handle_exit(camera, game, posX, posY);
+        handle_exit(camera, game);
     }
 
     camera->angle += camera->rotationVel * ROTATION_SPEED;
@@ -65,7 +65,7 @@ void move(Camera* camera, Game* game) {
 }
 
 
-void handle_exit(Camera* camera, Game* game, int x, int y) {
+void handle_exit(Camera* camera, Game* game) {
     if (strcmp(game->grid->exits[2], "NULL") != 0) {
         Grid* next = read_map_from_file(game->grid->exits[2]);
         free_grid(game->grid);
