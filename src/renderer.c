@@ -2,6 +2,7 @@
 #include <math.h>
 
 #include <renderer.h>
+#include <framebuffer.h>
 
 // TODO: Add shading and textures
 
@@ -51,7 +52,7 @@ void draw_map(SDL_Renderer* renderer, const Grid* g) {
 }
 
 
-void raycaster(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
+void raycaster(Camera* camera, Texture* wall_texture, const Grid* g) {
 
     // Each ray goes through all columns
     for (int i = 0; i < SCREEN_WIDTH; i++) {
@@ -134,25 +135,74 @@ void raycaster(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
 
         z_buffer[i] = perpWallDist; // Store distance for texture mapping
 
+        double wallX;
+        if (side == 0)
+            wallX = posY + perpWallDist * rayDirY;
+        else
+            wallX = posX + perpWallDist * rayDirX;
+
+        wallX -= floor(wallX);
+
+        int texX = (int)(wallX * wall_texture->width);
+        if (side == 0 && rayDirX > 0)
+            texX = wall_texture->width - texX - 1;
+
+        if (side == 1 && rayDirY < 0)
+            texX = wall_texture->width - texX - 1;
+
         int wall_height = (int)(SCREEN_HEIGHT / perpWallDist);
 
         if (wall_height > SCREEN_HEIGHT) wall_height = SCREEN_HEIGHT;
 
         int draw_start  = (SCREEN_HEIGHT - wall_height) / 2;
         int draw_end    = (SCREEN_HEIGHT + wall_height) / 2;
+        for (int y = draw_start; y < draw_end; y++)
+        {
+            int d = y * 256 - SCREEN_HEIGHT * 128 + wall_height * 128;
 
-        // printf("Wall distance: %f", perpWallDist);
-        // Adjust brightness depending on distance
-        float brightness = 1.0f - (perpWallDist / 10.0f);
-        if (brightness < 0.0f) brightness = 0.0f;
+            int texY = ((d * wall_texture->height) / wall_height) / 256;
 
-        // Right-sided walls should has darker shade than left-sided walls
-        // Check if ray has hit vertical wall
-        float shade = (side == 0 ? 0.9f : 0.7f) * brightness;
+            Uint32 color = wall_texture->pixels[
+                texY * wall_texture->width + texX
+            ];
 
-        SDL_SetRenderDrawColor(renderer, 255 * shade, 255 * shade, 255 * shade, 255);
-        SDL_RenderDrawLine(renderer, i, draw_start, i, draw_end);
+            float brightness = 1.0f - (perpWallDist / 10.0f);
 
+            if (brightness < 0.0f)
+                brightness = 0.0f;
+
+            float shade = (side == 0 ? 0.9f : 0.7f) * brightness;
+
+            Uint8 a = (color >> 24) & 0xFF;
+            Uint8 r = (color >> 16) & 0xFF;
+            Uint8 g = (color >> 8) & 0xFF;
+            Uint8 b = color & 0xFF;
+
+            r *= shade;
+            g *= shade;
+            b *= shade;
+
+            Uint32 shaded =
+                (a << 24) |
+                (r << 16) |
+                (g << 8) |
+                b;
+
+            put_pixel(i, y, shaded);
+        }
+
+
+        // // printf("Wall distance: %f", perpWallDist);
+        // // Adjust brightness depending on distance
+        // float brightness = 1.0f - (perpWallDist / 10.0f);
+        // if (brightness < 0.0f) brightness = 0.0f;
+
+        // // Right-sided walls should has darker shade than left-sided walls
+        // // Check if ray has hit vertical wall
+        // float shade = (side == 0 ? 0.9f : 0.7f) * brightness;
+
+        // SDL_SetRenderDrawColor(renderer, 255 * shade, 255 * shade, 255 * shade, 255);
+        // SDL_RenderDrawLine(renderer, i, draw_start, i, draw_end);
     }
 }
 
@@ -164,7 +214,7 @@ int comp (const void * elem1, const void * elem2) {
     return 0;
 }
 
-void render_textures(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
+void render_sprites(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
     double* distances = calculate_sprite_distances(camera, g);
 
     SpriteOrder sprite_order[g->sprite_count];

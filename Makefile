@@ -9,8 +9,10 @@ OBJS    = $(SRCS:$(SRC_DIR)/%.c=build/%.o)
 
 CFLAGS  = -Wall -Wextra -Wpedantic -std=c11 -I$(INC_DIR)
 CFLAGS += $(shell sdl2-config --cflags)
+CFLAGS += $(shell pkg-config --cflags SDL2_image)
 
 LDFLAGS = $(shell sdl2-config --libs) -lm
+LDFLAGS += $(shell pkg-config --libs SDL2_image)
 
 # Debug build (default)
 .PHONY: all

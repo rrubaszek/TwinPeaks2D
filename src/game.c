@@ -9,6 +9,8 @@
 #include <camera.h>
 #include <constants.h>
 #include <renderer.h>
+#include <framebuffer.h>
+#include <texture.h>
 
 
 int main(void) {
@@ -33,8 +35,14 @@ int main(void) {
     }
 
     SDL_Event event;
-    SDL_Rect floor = { 0, SCREEN_HEIGHT / 2, SCREEN_WIDTH, SCREEN_HEIGHT / 2 };
-    SDL_Rect celling = { 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT / 2 };
+    Texture* forest = load_texture("maps/forest.jpeg");
+    SDL_Texture* screen_texture = SDL_CreateTexture(
+        game.renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        SCREEN_WIDTH,
+        SCREEN_HEIGHT
+    );
     while (true) {
 
         while (SDL_PollEvent(&event)) {
@@ -52,11 +60,14 @@ int main(void) {
 
         }
 
-        SDL_SetRenderDrawColor(game.renderer, 0, 0, 0, 255);
-        SDL_RenderClear(game.renderer);
+        // SDL_SetRenderDrawColor(game.renderer, 0, 0, 0, 255);
+        // SDL_RenderClear(game.renderer);
 
+        // Handle input
         const Uint8* keys = SDL_GetKeyboardState(NULL);
         handle_input(&cam, keys);
+
+        // Handle move
         move(&cam, &game);
 
         // Functions used to debug
@@ -64,16 +75,40 @@ int main(void) {
         // draw_camera(&cam, game.renderer);
 
         // Draw celling and floor before raycaster, which draws the walls
-        SDL_SetRenderDrawColor(game.renderer, 50, 50, 50, 255);
-        SDL_RenderFillRect(game.renderer, &floor);
+        // SDL_SetRenderDrawColor(game.renderer, 50, 50, 50, 255);
+        // SDL_RenderFillRect(game.renderer, &floor);
 
-        SDL_SetRenderDrawColor(game.renderer, 75, 15, 255, 255);
-        SDL_RenderFillRect(game.renderer, &celling);  
+        // SDL_SetRenderDrawColor(game.renderer, 75, 15, 255, 255);
+        // SDL_RenderFillRect(game.renderer, &celling);  
 
-        raycaster(&cam, game.renderer, game.grid);
+        // Handle visuals - rendering
+        clear_framebuffer(0x00000000);
 
-        render_textures(&cam, game.renderer, game.grid);
+        // Floor and celling
+        for (int y = 0; y < SCREEN_HEIGHT / 2; y++) {
+            for (int x = 0; x < SCREEN_WIDTH; x++)
+                put_pixel(x, y, 0xFF111111);
+        }
 
+        for (int y = SCREEN_HEIGHT / 2; y < SCREEN_HEIGHT; y++) {
+            for (int x = 0; x < SCREEN_WIDTH; x++)
+                put_pixel(x, y, 0xFF333333);
+        }
+
+        raycaster(&cam, forest, game.grid);
+        // render_sprites(&cam, game.renderer, game.grid);
+
+        // Upload framebuffer
+        SDL_UpdateTexture(
+            screen_texture,
+            NULL,
+            framebuffer,
+            SCREEN_WIDTH * sizeof(Uint32)
+        );
+
+        // Present on screen
+        SDL_RenderClear(game.renderer);
+        SDL_RenderCopy(game.renderer, screen_texture, NULL, NULL);
         SDL_RenderPresent(game.renderer);
 
         SDL_Delay(16);
