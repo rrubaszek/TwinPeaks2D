@@ -35,7 +35,7 @@ int main(void) {
     }
 
     SDL_Event event;
-    Texture* forest = load_texture("maps/forest.jpeg");
+    Texture* forest = load_texture("maps/drapes.jpeg");
     SDL_Texture* screen_texture = SDL_CreateTexture(
         game.renderer,
         SDL_PIXELFORMAT_ARGB8888,
