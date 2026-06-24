@@ -19,6 +19,13 @@ typedef struct {
     float rotationVel;
 } Camera;
 
+typedef struct {
+    double dirX, dirY;
+    double planeX, planeY;
+    double posX, posY; // camera position in tile space
+} CameraView;
+
+CameraView camera_get_view(Camera* camera, const Grid* g);
 void handle_input(Camera* camera, const Uint8* keys);
 void handle_exit(Camera* camera, Game* game);
 void move(Camera* camera, Game* game);

@@ -35,6 +35,7 @@ int main(void) {
     }
 
     SDL_Event event;
+    CameraView view;
     Texture* forest = load_texture("maps/drapes.jpeg");
     Texture* floor = load_texture("maps/floor.png");
     SDL_Texture* screen_texture = SDL_CreateTexture(
@@ -72,6 +73,8 @@ int main(void) {
         // Handle move
         move(&cam, &game);
 
+        view = camera_get_view(&cam, game.grid);
+
         // Functions used to debug
         // draw_map(game.renderer, game.grid);
         // draw_camera(&cam, game.renderer);
@@ -86,19 +89,8 @@ int main(void) {
         // Handle visuals - rendering
         clear_framebuffer(0x00000000);
 
-        // Floor and celling
-        // for (int y = 0; y < SCREEN_HEIGHT / 2; y++) {
-        //     for (int x = 0; x < SCREEN_WIDTH; x++)
-        //         put_pixel(x, y, 0xFF111111);
-        // }
-
-        // for (int y = SCREEN_HEIGHT / 2; y < SCREEN_HEIGHT; y++) {
-        //     for (int x = 0; x < SCREEN_WIDTH; x++)
-        //         put_pixel(x, y, 0xFF333333);
-        // }
-
-        render_floor_ceiling(&cam, floor, NULL, game.grid);
-        raycaster(&cam, forest, game.grid);
+        render_floor_ceiling(&view, floor, NULL);
+        raycaster(&view, forest, game.grid);
         // render_sprites(&cam, game.renderer, game.grid);
 
         // Upload framebuffer

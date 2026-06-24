@@ -5,6 +5,17 @@
 #include <constants.h>
 
 
+CameraView camera_get_view(Camera* camera, const Grid* g) {
+    CameraView v;
+    v.dirX = cos(camera->angle);
+    v.dirY = sin(camera->angle);
+    v.planeX = -v.dirY * tan(FOV / 2);
+    v.planeY =  v.dirX * tan(FOV / 2);
+    v.posX = camera->x / g->tile_size;
+    v.posY = camera->y / g->tile_size;
+    return v;
+}
+
 void handle_input(Camera* camera, const Uint8* keys) {
     camera->moveVel     = 0;
     camera->rotationVel = 0;
