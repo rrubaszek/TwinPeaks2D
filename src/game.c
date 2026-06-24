@@ -36,6 +36,7 @@ int main(void) {
 
     SDL_Event event;
     Texture* forest = load_texture("maps/drapes.jpeg");
+    Texture* floor = load_texture("maps/floor.png");
     SDL_Texture* screen_texture = SDL_CreateTexture(
         game.renderer,
         SDL_PIXELFORMAT_ARGB8888,
@@ -43,6 +44,7 @@ int main(void) {
         SCREEN_WIDTH,
         SCREEN_HEIGHT
     );
+
     while (true) {
 
         while (SDL_PollEvent(&event)) {
@@ -85,16 +87,17 @@ int main(void) {
         clear_framebuffer(0x00000000);
 
         // Floor and celling
-        for (int y = 0; y < SCREEN_HEIGHT / 2; y++) {
-            for (int x = 0; x < SCREEN_WIDTH; x++)
-                put_pixel(x, y, 0xFF111111);
-        }
+        // for (int y = 0; y < SCREEN_HEIGHT / 2; y++) {
+        //     for (int x = 0; x < SCREEN_WIDTH; x++)
+        //         put_pixel(x, y, 0xFF111111);
+        // }
 
-        for (int y = SCREEN_HEIGHT / 2; y < SCREEN_HEIGHT; y++) {
-            for (int x = 0; x < SCREEN_WIDTH; x++)
-                put_pixel(x, y, 0xFF333333);
-        }
+        // for (int y = SCREEN_HEIGHT / 2; y < SCREEN_HEIGHT; y++) {
+        //     for (int x = 0; x < SCREEN_WIDTH; x++)
+        //         put_pixel(x, y, 0xFF333333);
+        // }
 
+        render_floor_ceiling(&cam, floor, NULL, game.grid);
         raycaster(&cam, forest, game.grid);
         // render_sprites(&cam, game.renderer, game.grid);
 

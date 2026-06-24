@@ -271,6 +271,66 @@ void render_sprites(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
     free(distances);
 }
 
+void render_floor_ceiling(Camera* camera, Texture* floor_tex, Texture* ceiling_tex, const Grid* g) {
+
+    double dirX   = cos(camera->angle);
+    double dirY   = sin(camera->angle);
+    double planeX = -dirY * tan(FOV / 2);
+    double planeY =  dirX * tan(FOV / 2);
+
+    double posX = camera->x / g->tile_size;
+    double posY = camera->y / g->tile_size;
+
+    // Ray direction for the leftmost and rightmost screen columns
+    double rayDirX0 = dirX - planeX;
+    double rayDirY0 = dirY - planeY;
+    double rayDirX1 = dirX + planeX;
+    double rayDirY1 = dirY + planeY;
+
+    for (int y = 0; y < SCREEN_HEIGHT; y++) {
+
+        // is this row floor or ceiling?
+        bool is_floor = y > SCREEN_HEIGHT / 2;
+        int p = is_floor ? (y - SCREEN_HEIGHT / 2) : (SCREEN_HEIGHT / 2 - y);
+        if (p == 0) continue; // avoid divide by zero on the horizon line
+
+        double rowDistance = (SCREEN_HEIGHT / 2.0) / p;
+
+        // step in world space per screen column, interpolated between the two edge rays
+        double floorStepX = rowDistance * (rayDirX1 - rayDirX0) / SCREEN_WIDTH;
+        double floorStepY = rowDistance * (rayDirY1 - rayDirY0) / SCREEN_WIDTH;
+
+        double floorX = posX + rowDistance * rayDirX0;
+        double floorY = posY + rowDistance * rayDirY0;
+
+        Texture* tex = is_floor ? floor_tex : ceiling_tex;
+
+        for (int x = 0; x < SCREEN_WIDTH; x++) {
+
+            if (tex == NULL) {
+                put_pixel(x, y, 0xFF333333); // flat grey fallback
+                continue;
+            }
+
+            int cellX = (int)floorX;
+            int cellY = (int)floorY;
+
+            double fracX = floorX - cellX;
+            double fracY = floorY - cellY;
+
+            int texX = (int)(fracX * tex->width)  % tex->width;
+            int texY = (int)(fracY * tex->height) % tex->height;
+
+            Uint32 color = tex->pixels[texY * tex->width + texX];
+
+            put_pixel(x, y, color);
+
+            floorX += floorStepX;
+            floorY += floorStepY;
+        }
+    }
+}
+
 double* calculate_sprite_distances(Camera* camera, const Grid* g) {
     double* distances = malloc(g->sprite_count * sizeof(double));
     double camTileX = camera->x / g->tile_size;
