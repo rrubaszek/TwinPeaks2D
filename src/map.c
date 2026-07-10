@@ -10,7 +10,10 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
     }
 
     Grid* g = malloc(sizeof(Grid));
-    if (!g) { fclose(fptr); return NULL; }
+    if (!g) { 
+        fclose(fptr); return NULL; 
+    }
+
     // Read map parameters
     fscanf(fptr, "%d %d %d", &g->w, &g->h, &g->tile_size);
 
@@ -18,11 +21,9 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
     char wall_name[64], floor_name[64], ceiling_name[64];
     fscanf(fptr, "%s %s %s", wall_name, floor_name, ceiling_name);
 
-    char wall_path[128];
+    char wall_path[128], floor_path[128], ceilling_path[128];
     snprintf(wall_path, sizeof(wall_path), "%s%s", TEXTURE_PATH, wall_name);
-    char floor_path[128];
     snprintf(floor_path, sizeof(floor_path), "%s%s", TEXTURE_PATH, floor_name);
-    char ceilling_path[128];
     snprintf(ceilling_path, sizeof(ceilling_path), "%s%s", TEXTURE_PATH, ceiling_name);
 
     g->wall_tex_id    = texman_load(tm, wall_path);
