@@ -1,14 +1,28 @@
 #ifndef SPRITE_H
 #define SPRITE_H
 
-typedef struct {
-    double x, y;
-    int texture_id;
-} Sprite;
+#include <stdbool.h>
 
 typedef struct {
     int index;
     double distance;
 } SpriteOrder;
+
+typedef enum {
+    SPRITE_STATIC = 0,  // table, plant, lamp ...
+    SPRITE_INTERACTIVE = 1,  // coffee mug, pie — can be picked up / examined
+    SPRITE_DOOR = 2,  // animated
+    SPRITE_NPC = 3,  // future: Norma, Shelly ...
+} SpriteType;
+
+typedef struct {
+    double x, y;
+    SpriteType type;
+    int texture_id;
+    float scale; // 1.0 = person-height, 0.3 = mug
+    float collision_r; // radius for interaction/blocking (0 = no collision)
+    bool visible; // can be toggled (picked up item disappears)
+    void* state; // type-specific data (door open amount, NPC state...)
+} Sprite;
 
 #endif // SPRITE_H

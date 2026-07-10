@@ -20,6 +20,7 @@ int main(void) {
         .window = NULL,
         .background = NULL, // Later to add some background texture
         .grid = NULL,
+        .texman = NULL,
     };
 
     Camera cam = {
@@ -36,8 +37,6 @@ int main(void) {
 
     SDL_Event event;
     CameraView view;
-    Texture* forest = load_texture("maps/drapes.jpeg");
-    Texture* floor = load_texture("maps/floor.png");
     SDL_Texture* screen_texture = SDL_CreateTexture(
         game.renderer,
         SDL_PIXELFORMAT_ARGB8888,
@@ -89,8 +88,8 @@ int main(void) {
         // Handle visuals - rendering
         clear_framebuffer(0x00000000);
 
-        render_floor_ceiling(&view, floor, NULL);
-        raycaster(&view, forest, game.grid);
+        render_floor_ceiling(&view, game.texman, game.grid);
+        raycaster(&view, game.texman, game.grid);
         // render_sprites(&cam, game.renderer, game.grid);
 
         // Upload framebuffer
@@ -127,6 +126,12 @@ void sdl_cleanup(Game* game, int exit_code) {
         printf("Map destroyed successfully\n");
     }
 
+    if (game->texman) {
+        texman_free(game->texman);
+        free(game->texman);
+        printf("Textures destroyed succcessfully\n");
+    }
+
     exit(exit_code);
 }
 
@@ -149,7 +154,9 @@ bool sdl_initialize(Game* game) {
         return true;
     }
 
-    game->grid = read_map_from_file("maps/map2.txt");
+    game->texman = calloc(1, sizeof(TextureManager));
+    game->texman->count = 0;
+    game->grid = read_map_from_file("maps/map.txt", game->texman);
     if (!game->grid) {
         printf("Failed to create game grid: %s\n", strerror(errno));
         return true;

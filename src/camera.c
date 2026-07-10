@@ -41,7 +41,7 @@ void move(Camera* camera, Game* game) {
     double nextX = camera->x + dx;
 
     int posX = (int)floor((nextX + (dx > 0 ? PLAYER_RADIUS : -PLAYER_RADIUS)) / game->grid->tile_size);
-    int posY = (int)(camera->y / game->grid->tile_size);
+    int posY = (int)floor(camera->y / game->grid->tile_size);
 
     if (!is_wall(posX, posY, game->grid)) {
         camera->x = nextX;
@@ -54,7 +54,7 @@ void move(Camera* camera, Game* game) {
     double dy = sinf(camera->angle) * camera->moveVel * MOV_SPEED;
     double nextY = camera->y + dy;
 
-    posX = (int)(camera->x / game->grid->tile_size);
+    posX = (int)floor(camera->x / game->grid->tile_size);
     posY = (int)floor((nextY + (dy > 0 ? PLAYER_RADIUS : -PLAYER_RADIUS)) / game->grid->tile_size);
 
     if (!is_wall(posX, posY, game->grid)) {
@@ -75,37 +75,69 @@ void move(Camera* camera, Game* game) {
     }
 }
 
-
 void handle_exit(Camera* camera, Game* game) {
-    if (strcmp(game->grid->exits[2], "NULL") != 0) {
-        Grid* next = read_map_from_file(game->grid->exits[2]);
-        free_grid(game->grid);
-        game->grid = next;
-        camera->x = 2 * game->grid->tile_size;
-    } else if (strcmp(game->grid->exits[3], "NULL") != 0) {
-        Grid* next = read_map_from_file(game->grid->exits[3]);
-        free_grid(game->grid);
-        game->grid = next;
-        camera->x = (game->grid->w - 2) * game->grid->tile_size;
-    } else if (strcmp(game->grid->exits[1], "NULL") != 0) {
-        Grid* next = read_map_from_file(game->grid->exits[1]);
-        free_grid(game->grid);
-        game->grid = next;
-        camera->y = 2 * game->grid->tile_size;
-    } else if (strcmp(game->grid->exits[0], "NULL") != 0) {
-        Grid* next = read_map_from_file(game->grid->exits[0]);
-        free_grid(game->grid);
-        game->grid = next;
-        camera->y = (game->grid->h - 2) * game->grid->tile_size;
+    printf("handle_exit: exits=[%s][%s][%s][%s]\n",
+        game->grid->exits[0], game->grid->exits[1],
+        game->grid->exits[2], game->grid->exits[3]);
+
+    char next_file[128];
+    int dir = -1;
+
+    // determine which exit to use and copy filename safely
+    if (strcmp(game->grid->exits[2], "NULL") != 0) { strncpy(next_file, game->grid->exits[2], 128); dir = 2; }
+    else if (strcmp(game->grid->exits[3], "NULL") != 0) { strncpy(next_file, game->grid->exits[3], 128); dir = 3; }
+    else if (strcmp(game->grid->exits[1], "NULL") != 0) { strncpy(next_file, game->grid->exits[1], 128); dir = 1; }
+    else if (strcmp(game->grid->exits[0], "NULL") != 0) { strncpy(next_file, game->grid->exits[0], 128); dir = 0; }
+
+    if (dir == -1) return;
+
+    printf("Loading: %s dir=%d\n", next_file, dir);
+
+    Grid* next = read_map_from_file(next_file, game->texman);
+    printf("read_map_from_file returned: %p\n", (void*)next);
+    if (!next) {
+        printf("Failed to load: %s\n", next_file);
+        return;
     }
+
+    printf("Freeing old grid...\n");
+
+    free_grid(game->grid);
+    printf("Assigning new grid...\n");
+    game->grid = next;
+
+    printf("Repositioning camera...\n");
+    switch (dir) {
+        case 2:  // came from west, spawn on west side
+            camera->x = 1.5 * game->grid->tile_size;
+            camera->y = camera->y;  // preserve Y
+            break;
+        case 3:  // came from east, spawn on east side
+            camera->x = (game->grid->w - 1.5) * game->grid->tile_size;
+            camera->y = camera->y;  // preserve Y
+            break;
+        case 1:  // came from south, spawn on south side
+            camera->x = camera->x;  // preserve X
+            camera->y = (game->grid->h - 1.5) * game->grid->tile_size;
+            break;
+        case 0:  // came from north, spawn on north side
+            camera->x = camera->x;  // preserve X
+            camera->y = 1.5 * game->grid->tile_size;
+            break;
+    }
+    printf("handle_exit complete\n");
 }
 
 
 bool is_wall(int x, int y, Grid* g) {
-    return (x < 0 || x >= g->w || y < 0 || y >= g->h) ? true : g->map[y][x] == 1;
+    Tile* t = get_tile(g, x, y);
+    if (!t) return true;  // out of bounds blocks movement
+    return is_tile_solid(t);
 }
 
 
 bool is_exit(int x, int y, Grid* g) {
-    return (x < 0 || x >= g->w || y < 0 || y >= g->h) ? false : g->map[y][x] == 2;
+    Tile* t = get_tile(g, x, y);
+    if (!t) return false;
+    return t->type == TILE_EXIT;
 }

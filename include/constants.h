@@ -19,4 +19,8 @@
 
 #define MAX_RENDER_DISTANCE 1600
 
+#define TEXTURE_PATH "maps/textures/"
+
+#define MAX_TEXTURES 16
+
 #endif // CONSTANTS_H

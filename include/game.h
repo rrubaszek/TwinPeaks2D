@@ -1,15 +1,18 @@
 #ifndef GAME_H
 #define GAME_H
 
+#include <map.h>
+#include <texturemanager.h>
+
 #include <SDL2/SDL.h>
 #include <stdbool.h>
-#include <map.h>
 
 typedef struct {
     SDL_Window* window;
     SDL_Renderer* renderer;
     SDL_Texture* background;
     Grid* grid;
+    TextureManager* texman;
 } Game;
 
 bool sdl_initialize(Game* game);

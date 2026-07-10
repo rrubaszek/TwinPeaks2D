@@ -7,6 +7,8 @@ typedef struct texture_s {
     int width;
     int height;
     Uint32* pixels;
+
+    char name[128];
 } Texture;
 
 Texture* load_texture(const char* path);

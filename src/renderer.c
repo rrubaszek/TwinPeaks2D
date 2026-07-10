@@ -63,10 +63,11 @@ void draw_camera(Camera* camera, SDL_Renderer* renderer) {
 
 
 void draw_map(SDL_Renderer* renderer, const Grid* g) {
-    for (int i = 0; i < g->w; i++) {
-        for (int j = 0; j < g->h; j++) {
-            if (g->map[j][i] == 1) {
-                SDL_Rect wall = { i * g->tile_size, j * g->tile_size, g->tile_size, g->tile_size };
+    for (int row = 0; row < g->h; row++) {
+        for (int col = 0; col < g->w; col++) {
+            Tile* t = get_tile(g, col, row);
+            if (t && is_tile_solid(t)) {
+                SDL_Rect wall = { col * g->tile_size, row * g->tile_size, g->tile_size, g->tile_size };
                 SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
                 SDL_RenderFillRect(renderer, &wall);
             }
@@ -74,12 +75,10 @@ void draw_map(SDL_Renderer* renderer, const Grid* g) {
     }
 
     SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-
     for (int i = 0; i <= g->w; i++) {
         int x = i * g->tile_size;
         SDL_RenderDrawLine(renderer, x, 0, x, g->h * g->tile_size);
     }
-
     for (int j = 0; j <= g->h; j++) {
         int y = j * g->tile_size;
         SDL_RenderDrawLine(renderer, 0, y, g->w * g->tile_size, y);
@@ -133,7 +132,8 @@ RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, co
             hit = 1;
             break;
         }
-        if (g->map[mapY][mapX] == 1) {
+        Tile* t = get_tile(g, mapX, mapY);
+        if (t && is_tile_solid(t)) {
             hit = 1;
         }
     }
@@ -146,7 +146,8 @@ RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, co
     return result;
 }
 
-void raycaster(CameraView* view, Texture* wall_texture, const Grid* g) {
+void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
+    Texture* wall_texture = texman_get(tm, g->wall_tex_id);
 
     for (int i = 0; i < SCREEN_WIDTH; i++) {
 
@@ -242,7 +243,9 @@ void render_sprites(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
     free(distances);
 }
 
-void render_floor_ceiling(CameraView* view, Texture* floor_tex, Texture* ceiling_tex) {
+void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
+    Texture* floor_tex = texman_get(tm, g->floor_tex_id);
+    Texture* ceiling_tex = texman_get(tm, g->ceiling_tex_id);
 
     double rayDirX0 = view->dirX - view->planeX;
     double rayDirY0 = view->dirY - view->planeY;

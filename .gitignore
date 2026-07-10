@@ -2,3 +2,7 @@ twin_peaks
 
 .vscode/
 build/
+
+.venv/
+
+maps/textures/
