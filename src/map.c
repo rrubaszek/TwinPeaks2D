@@ -17,7 +17,7 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
     // Read map parameters
     fscanf(fptr, "%d %d %d", &g->w, &g->h, &g->tile_size);
 
-    // Read map textures
+    // Read default map textures
     char wall_name[64], floor_name[64], ceiling_name[64];
     fscanf(fptr, "%s %s %s", wall_name, floor_name, ceiling_name);
 
@@ -39,7 +39,8 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
             float height;
             fscanf(fptr, "%d:%d:%f", &type, &tex_id, &height);
             g->map[i][j].type = (TileType)type;
-            g->map[i][j].texture_id = tex_id;
+            // TODO: Where to load specific textures like window, door, painting ... ?
+            g->map[i][j].texture_id = tex_id; // Placeholder for specific textures - currently not loaded
             g->map[i][j].height = height;
         }
     }

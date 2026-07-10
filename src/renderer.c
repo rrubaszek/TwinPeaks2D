@@ -146,6 +146,7 @@ RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, co
     return result;
 }
 
+// TODO: Implement specific textures via texture manager
 void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
     Texture* wall_texture = texman_get(tm, g->wall_tex_id);
 
@@ -186,6 +187,7 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
     }
 }
 
+// TODO: Implement specific textures for sprites
 void render_sprites(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
     double* distances = calculate_sprite_distances(camera, g);
 
@@ -243,6 +245,7 @@ void render_sprites(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
     free(distances);
 }
 
+// TODO: Implement specific textures via texture manager
 void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
     Texture* floor_tex = texman_get(tm, g->floor_tex_id);
     Texture* ceiling_tex = texman_get(tm, g->ceiling_tex_id);
