@@ -8,6 +8,41 @@
 
 double z_buffer[SCREEN_WIDTH]; // Store distance to walls for each column for texture mapping
 
+float compute_shade(double distance, float side_factor) {
+    float brightness = 1.0f - (float)(distance / 10.0);
+    if (brightness < 0.0f) brightness = 0.0f;
+    return side_factor * brightness;
+}
+
+int comp (const void * elem1, const void * elem2) {
+    double f = (*(SpriteOrder*)elem1).distance;
+    double s = (*(SpriteOrder*)elem2).distance;
+    if (f > s) return -1; // descending order
+    if (f < s) return 1;
+    return 0;
+}
+
+Uint32 apply_shade(Uint32 color, float shade) {
+    Uint8 a = (color >> 24) & 0xFF;
+    Uint8 r = (Uint8)(((color >> 16) & 0xFF) * shade);
+    Uint8 g = (Uint8)(((color >> 8)  & 0xFF) * shade);
+    Uint8 b = (Uint8)((color & 0xFF) * shade);
+    return (a << 24) | (r << 16) | (g << 8) | b;
+}
+
+
+double* calculate_sprite_distances(Camera* camera, const Grid* g) {
+    double* distances = malloc(g->sprite_count * sizeof(double));
+    double camTileX = camera->x / g->tile_size;
+    double camTileY = camera->y / g->tile_size;
+    for (int i = 0; i < g->sprite_count; i++) {
+        double dx = g->sprites[i].x - camTileX;
+        double dy = g->sprites[i].y - camTileY;
+        distances[i] = dx*dx + dy*dy;
+    }
+    return distances;
+}
+
 void draw_camera(Camera* camera, SDL_Renderer* renderer) {
     int screen_x = (int)camera->x;
     int screen_y = (int)camera->y;
@@ -51,167 +86,103 @@ void draw_map(SDL_Renderer* renderer, const Grid* g) {
     }
 }
 
+RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, const Grid* g) {
+    RaycastHit result;
+    result.rayDirX = rayDirX;
+    result.rayDirY = rayDirY;
 
-void raycaster(Camera* camera, Texture* wall_texture, const Grid* g) {
+    int mapX = (int)posX;
+    int mapY = (int)posY;
 
-    // Each ray goes through all columns
+    double deltaDistX = (rayDirX == 0) ? 1e30 : fabs(1 / rayDirX);
+    double deltaDistY = (rayDirY == 0) ? 1e30 : fabs(1 / rayDirY);
+
+    double sideDistX, sideDistY;
+    int stepX, stepY;
+    int side = 0;
+    int hit = 0;
+
+    if (rayDirX < 0) {
+        stepX = -1;
+        sideDistX = (posX - mapX) * deltaDistX;
+    } else {
+        stepX = 1;
+        sideDistX = (mapX + 1.0 - posX) * deltaDistX;
+    }
+
+    if (rayDirY < 0) {
+        stepY = -1;
+        sideDistY = (posY - mapY) * deltaDistY;
+    } else {
+        stepY = 1;
+        sideDistY = (mapY + 1.0 - posY) * deltaDistY;
+    }
+
+    while (!hit) {
+        if (sideDistX < sideDistY) {
+            sideDistX += deltaDistX;
+            mapX += stepX;
+            side = 0;
+        } else {
+            sideDistY += deltaDistY;
+            mapY += stepY;
+            side = 1;
+        }
+
+        if (mapX < 0 || mapX >= g->w || mapY < 0 || mapY >= g->h) {
+            hit = 1;
+            break;
+        }
+        if (g->map[mapY][mapX] == 1) {
+            hit = 1;
+        }
+    }
+
+    result.mapX = mapX;
+    result.mapY = mapY;
+    result.side = side;
+    result.perpWallDist = (side == 0) ? (sideDistX - deltaDistX) : (sideDistY - deltaDistY);
+
+    return result;
+}
+
+void raycaster(CameraView* view, Texture* wall_texture, const Grid* g) {
+
     for (int i = 0; i < SCREEN_WIDTH; i++) {
 
         double cameraX = 2 * i / (double)SCREEN_WIDTH - 1;
+        double rayDirX = view->dirX + view->planeX * cameraX;
+        double rayDirY = view->dirY + view->planeY * cameraX;
 
-        double dirX = cos(camera->angle);
-        double dirY = sin(camera->angle);
+        RaycastHit hit = cast_ray(view->posX, view->posY, rayDirX, rayDirY, g);
+        z_buffer[i] = hit.perpWallDist;
 
-        double planeX = -dirY * tan(FOV / 2);
-        double planeY =  dirX * tan(FOV / 2);
-
-        double rayDirX = dirX + planeX * cameraX;
-        double rayDirY = dirY + planeY * cameraX;
-
-        double posX = camera->x / g->tile_size;
-        double posY = camera->y / g->tile_size;
-
-        //which box of the map we're in
-        int mapX = (int)posX;
-        int mapY = (int)posY;
-
-        //length of ray from current position to next x or y-side
-        double sideDistX;
-        double sideDistY;
-
-        //length of ray from one x or y-side to next x or y-side
-        double deltaDistX = (rayDirX == 0) ? 1e30 : fabs(1 / rayDirX);
-        double deltaDistY = (rayDirY == 0) ? 1e30 : fabs(1 / rayDirY);
-
-        //what direction to step in x or y-direction (either +1 or -1)
-        int stepX;
-        int stepY;
-
-        int hit = 0; //was there a wall hit?
-        int side = 0; //was a NS or a EW wall hit?
-
-        if (rayDirX < 0) {
-            stepX = -1;
-            sideDistX = (posX - mapX) * deltaDistX;
-        } else {
-            stepX = 1;
-            sideDistX = (mapX + 1.0 - posX) * deltaDistX;
-        }
-
-        if (rayDirY < 0) {
-            stepY = -1;
-            sideDistY = (posY - mapY) * deltaDistY;
-        } else {
-            stepY = 1;
-            sideDistY = (mapY + 1.0 - posY) * deltaDistY;
-        }
-
-        while (hit == 0) {
-            if (sideDistX < sideDistY) {
-                sideDistX += deltaDistX;
-                mapX += stepX;
-                side = 0;
-            } else {
-                sideDistY += deltaDistY;
-                mapY += stepY;
-                side = 1;
-            }
-
-            if (mapX < 0 || mapX >= g->w || mapY < 0 || mapY >= g->h) {
-                hit = 1;
-                break;
-            }
-
-            if (g->map[mapY][mapX] == 1) {
-                hit = 1;
-            }
-        }
-
-        double perpWallDist;
-        if (side == 0)
-            perpWallDist = sideDistX - deltaDistX;
-        else
-            perpWallDist = sideDistY - deltaDistY;
-
-        z_buffer[i] = perpWallDist; // Store distance for texture mapping
-
-        double wallX;
-        if (side == 0)
-            wallX = posY + perpWallDist * rayDirY;
-        else
-            wallX = posX + perpWallDist * rayDirX;
-
+        // texture X coordinate on the wall
+        double wallX = (hit.side == 0)
+            ? view->posY + hit.perpWallDist * rayDirY
+            : view->posX + hit.perpWallDist * rayDirX;
         wallX -= floor(wallX);
 
         int texX = (int)(wallX * wall_texture->width);
-        if (side == 0 && rayDirX > 0)
+        if ((hit.side == 0 && rayDirX > 0) || (hit.side == 1 && rayDirY < 0))
             texX = wall_texture->width - texX - 1;
 
-        if (side == 1 && rayDirY < 0)
-            texX = wall_texture->width - texX - 1;
-
-        int wall_height = (int)(SCREEN_HEIGHT / perpWallDist);
-
+        int wall_height = (int)(SCREEN_HEIGHT / hit.perpWallDist);
         if (wall_height > SCREEN_HEIGHT) wall_height = SCREEN_HEIGHT;
 
-        int draw_start  = (SCREEN_HEIGHT - wall_height) / 2;
-        int draw_end    = (SCREEN_HEIGHT + wall_height) / 2;
-        for (int y = draw_start; y < draw_end; y++)
-        {
-            int d = y * 256 - SCREEN_HEIGHT * 128 + wall_height * 128;
+        int draw_start = (SCREEN_HEIGHT - wall_height) / 2;
+        int draw_end   = (SCREEN_HEIGHT + wall_height) / 2;
 
+        float shade = compute_shade(hit.perpWallDist, hit.side == 0 ? 0.9f : 0.7f);
+
+        for (int y = draw_start; y < draw_end; y++) {
+            int d = y * 256 - SCREEN_HEIGHT * 128 + wall_height * 128;
             int texY = ((d * wall_texture->height) / wall_height) / 256;
 
-            Uint32 color = wall_texture->pixels[
-                texY * wall_texture->width + texX
-            ];
-
-            float brightness = 1.0f - (perpWallDist / 10.0f);
-
-            if (brightness < 0.0f)
-                brightness = 0.0f;
-
-            float shade = (side == 0 ? 0.9f : 0.7f) * brightness;
-
-            Uint8 a = (color >> 24) & 0xFF;
-            Uint8 r = (color >> 16) & 0xFF;
-            Uint8 g = (color >> 8) & 0xFF;
-            Uint8 b = color & 0xFF;
-
-            r *= shade;
-            g *= shade;
-            b *= shade;
-
-            Uint32 shaded =
-                (a << 24) |
-                (r << 16) |
-                (g << 8) |
-                b;
-
-            put_pixel(i, y, shaded);
+            Uint32 color = wall_texture->pixels[texY * wall_texture->width + texX];
+            put_pixel(i, y, apply_shade(color, shade));
         }
-
-
-        // // printf("Wall distance: %f", perpWallDist);
-        // // Adjust brightness depending on distance
-        // float brightness = 1.0f - (perpWallDist / 10.0f);
-        // if (brightness < 0.0f) brightness = 0.0f;
-
-        // // Right-sided walls should has darker shade than left-sided walls
-        // // Check if ray has hit vertical wall
-        // float shade = (side == 0 ? 0.9f : 0.7f) * brightness;
-
-        // SDL_SetRenderDrawColor(renderer, 255 * shade, 255 * shade, 255 * shade, 255);
-        // SDL_RenderDrawLine(renderer, i, draw_start, i, draw_end);
     }
-}
-
-int comp (const void * elem1, const void * elem2) {
-    double f = (*(SpriteOrder*)elem1).distance;
-    double s = (*(SpriteOrder*)elem2).distance;
-    if (f > s) return -1; // descending order
-    if (f < s) return 1;
-    return 0;
 }
 
 void render_sprites(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
@@ -271,14 +242,55 @@ void render_sprites(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
     free(distances);
 }
 
-double* calculate_sprite_distances(Camera* camera, const Grid* g) {
-    double* distances = malloc(g->sprite_count * sizeof(double));
-    double camTileX = camera->x / g->tile_size;
-    double camTileY = camera->y / g->tile_size;
-    for (int i = 0; i < g->sprite_count; i++) {
-        double dx = g->sprites[i].x - camTileX;
-        double dy = g->sprites[i].y - camTileY;
-        distances[i] = dx*dx + dy*dy;
+void render_floor_ceiling(CameraView* view, Texture* floor_tex, Texture* ceiling_tex) {
+
+    double rayDirX0 = view->dirX - view->planeX;
+    double rayDirY0 = view->dirY - view->planeY;
+    double rayDirX1 = view->dirX + view->planeX;
+    double rayDirY1 = view->dirY + view->planeY;
+
+    for (int y = 0; y < SCREEN_HEIGHT; y++) {
+
+        bool is_floor = y > SCREEN_HEIGHT / 2;
+        int p = is_floor ? (y - SCREEN_HEIGHT / 2) : (SCREEN_HEIGHT / 2 - y);
+        if (p == 0) continue;
+
+        double rowDistance = (SCREEN_HEIGHT / 2.0) / p;
+
+        float shade = compute_shade(rowDistance, is_floor ? 1.0f : 0.85f);
+
+        double floorStepX = rowDistance * (rayDirX1 - rayDirX0) / SCREEN_WIDTH;
+        double floorStepY = rowDistance * (rayDirY1 - rayDirY0) / SCREEN_WIDTH;
+
+        double floorX = view->posX + rowDistance * rayDirX0;
+        double floorY = view->posY + rowDistance * rayDirY0;
+
+        Texture* tex = is_floor ? floor_tex : ceiling_tex;
+
+        for (int x = 0; x < SCREEN_WIDTH; x++) {
+
+            if (tex == NULL) {
+                put_pixel(x, y, apply_shade(0xFF333333, shade));
+                floorX += floorStepX;
+                floorY += floorStepY;
+                continue;
+            }
+
+            int cellX = (int)floor(floorX);
+            int cellY = (int)floor(floorY);
+
+            double fracX = floorX - cellX;
+            double fracY = floorY - cellY;
+
+            int texX = (int)(fracX * tex->width)  % tex->width;
+            int texY = (int)(fracY * tex->height) % tex->height;
+
+            Uint32 color = tex->pixels[texY * tex->width + texX];
+
+            put_pixel(x, y, apply_shade(color, shade));
+
+            floorX += floorStepX;
+            floorY += floorStepY;
+        }
     }
-    return distances;
 }
