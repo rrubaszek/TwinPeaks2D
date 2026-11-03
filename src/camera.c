@@ -94,6 +94,7 @@ void handle_exit(Camera* camera, Game* game) {
     printf("Loading: %s dir=%d\n", next_file, dir);
 
     Grid* next = read_map_from_file(next_file, game->texman);
+    printf("texman count: %d\n", game->texman->count);
     printf("read_map_from_file returned: %p\n", (void*)next);
     if (!next) {
         printf("Failed to load: %s\n", next_file);

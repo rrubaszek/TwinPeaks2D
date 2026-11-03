@@ -21,6 +21,7 @@ Texture* load_texture(const char* path) {
     Texture* texture = malloc(sizeof(Texture));
     texture->width = formatted_surface->w;
     texture->height = formatted_surface->h;
+    snprintf(texture->name, sizeof(texture->name), "%s", path);
 
     int size = texture->width * texture->height;
     texture->pixels = malloc(size * sizeof(Uint32));
