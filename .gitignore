@@ -6,3 +6,6 @@ build/
 .venv/
 
 maps/textures/
+
+.claude/
+CLAUDE.md
