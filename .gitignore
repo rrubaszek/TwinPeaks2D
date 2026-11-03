@@ -7,5 +7,4 @@ build/
 
 maps/textures/
 
-.claude/
-CLAUDE.md
+.claude/settings.local.json
