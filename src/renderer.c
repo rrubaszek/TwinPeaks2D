@@ -297,10 +297,11 @@ void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
         double floorY = view->posY + rowDistance * rayDirY0;
 
         Texture* tex = is_floor ? floor_tex : ceiling_tex;
+        Uint32* row = &framebuffer[y * SCREEN_WIDTH];   // y in [0, SCREEN_HEIGHT), no bounds check needed
 
         if (tex == NULL) {
             for (int x = 0; x < SCREEN_WIDTH; x++)
-                put_pixel(x, y, shade_mul(0xFF333333, mul));
+                row[x] = shade_mul(0xFF333333, mul);
             continue;
         }
 
@@ -317,7 +318,7 @@ void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
 
         for (int x = 0; x < SCREEN_WIDTH; x++) {
             Uint32 color = tex->pixels[(v >> 16) * tex->width + (u >> 16)];
-            put_pixel(x, y, shade_mul(color, mul));
+            row[x] = shade_mul(color, mul);
 
             u += du; if (u >= W) u -= W; else if (u < 0) u += W;
             v += dv; if (v >= H) v -= H; else if (v < 0) v += H;
