@@ -16,3 +16,18 @@ Callgrind (release -g, 1 klatka, ten sam widok) — instrukcje na klatkę:
 | render_floor_ceiling | 45 070 616 | 479 200× put_pixel, 958 400× floor()   |
 | raycaster           pixel, 800× cast_ray   |
 | put_pixel (łącznie) ań, niezinlinowana   |
+
+
+| section              |  avg ms |  max ms | % frame |
+| clear_framebuffer    |   0.341 |   0.786 |    2.2% |
+| render_floor_ceiling |  11.723 |  17.888 |   75.5% |
+| raycaster            |   2.694 |   6.921 |   17.4% |
+| upload + present     |   0.726 |   1.812 |    4.7% |
+| frame (no delay)     |  15.517 |  21.163 |  100.0% |
+
+| section              |  avg ms |  max ms | % frame |
+| clear_framebuffer    |   0.410 |   0.910 |    2.5% |
+| render_floor_ceiling |  11.519 |  15.637 |   71.3% |
+| raycaster            |   3.493 |   6.929 |   21.6% |
+| upload + present     |   0.690 |   1.361 |    4.3% |
+| frame (no delay)     |  16.146 |  21.897 |  100.0% |

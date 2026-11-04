@@ -133,7 +133,11 @@ int main(void) {
         prof_end(PROF_FRAME);
         prof_frame_done();
 
-        SDL_Delay(16);
+        // Frame cap: sleep only for what is left of the frame budget
+        double frame_ms = timer_now_ms() - now_ms;
+        if (frame_ms < FRAME_DELAY) {
+            SDL_Delay((Uint32)(FRAME_DELAY - frame_ms));
+        }
     }
 
     sdl_cleanup(&game, EXIT_SUCCESS);
