@@ -192,13 +192,17 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
         double step = (double)tex_h / line_height;
         double tex_pos = (draw_start - wall_top) * step;
 
+        // Column write: one pixel per row, stride = SCREEN_WIDTH
+        Uint32* dst = &framebuffer[draw_start * SCREEN_WIDTH + i];
+
         for (int y = draw_start; y < draw_end; y++) {
             int texY = (int)tex_pos;
             if (texY >= tex_h) texY = tex_h - 1;
             tex_pos += step;
 
             Uint32 color = wall_texture->pixels[texY * wall_texture->width + texX];
-            put_pixel(i, y, apply_shade(color, shade));
+            *dst = apply_shade(color, shade);
+            dst += SCREEN_WIDTH;
         }
     }
 }
