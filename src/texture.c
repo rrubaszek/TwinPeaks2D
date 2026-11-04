@@ -19,12 +19,25 @@ Texture* load_texture(const char* path) {
     }
 
     Texture* texture = malloc(sizeof(Texture));
+    if (!texture) {
+        fprintf(stderr, "Out of memory loading texture %s\n", path);
+        SDL_FreeSurface(formatted_surface);
+        SDL_FreeSurface(surface);
+        return NULL;
+    }
     texture->width = formatted_surface->w;
     texture->height = formatted_surface->h;
     snprintf(texture->name, sizeof(texture->name), "%s", path);
 
     int size = texture->width * texture->height;
     texture->pixels = malloc(size * sizeof(Uint32));
+    if (!texture->pixels) {
+        fprintf(stderr, "Out of memory loading texture pixels %s\n", path);
+        free(texture);
+        SDL_FreeSurface(formatted_surface);
+        SDL_FreeSurface(surface);
+        return NULL;
+    }
 
     Uint32* src_pixels = (uint32_t*)formatted_surface->pixels;
     for (int i = 0; i < size; i++) {
