@@ -86,7 +86,7 @@ Kryterium: zero alokacji na stercie w pętli klatki.
 - E1 `?` Akcja „użyj/zbadaj” na obiekt w centrum ekranu (wymaga D1)
 - E2 `?` Ekwipunek
 - E3 `?` Stan świata trwały między mapami (dziś `handle_exit` ładuje mapę od zera)
-- E4 `?` Edytor map (format `maps/*.txt`)
+- E4 `WIP` Edytor map (format `maps/*.txt`) — v1 w `editor/` (PySide6): kafelki + sprite'y, walidacja; v2: undo, tekstury per kafelek, start gracza
 - E5 `?` Wyświetlanie tekstu / HUD (zależne od decyzji w Wizji)
 
 ---
