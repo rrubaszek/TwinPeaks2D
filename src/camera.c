@@ -35,9 +35,9 @@ void handle_input(Camera* camera, const Uint8* keys) {
 }
 
 
-void move(Camera* camera, Game* game) {
+void move(Camera* camera, Game* game, double dt) {
 
-    double dx = cos(camera->angle) * camera->moveVel * MOV_SPEED;
+    double dx = cos(camera->angle) * camera->moveVel * MOV_SPEED * dt;
     double nextX = camera->x + dx;
 
     int posX = (int)floor((nextX + (dx > 0 ? PLAYER_RADIUS : -PLAYER_RADIUS)) / game->grid->tile_size);
@@ -49,7 +49,7 @@ void move(Camera* camera, Game* game) {
 
     bool touching_exit = is_exit(posX, posY, game->grid);
 
-    double dy = sin(camera->angle) * camera->moveVel * MOV_SPEED;
+    double dy = sin(camera->angle) * camera->moveVel * MOV_SPEED * dt;
     double nextY = camera->y + dy;
 
     posX = (int)floor(camera->x / game->grid->tile_size);
@@ -69,7 +69,7 @@ void move(Camera* camera, Game* game) {
     }
     camera->on_exit = touching_exit && !changed_map;
 
-    camera->angle += camera->rotationVel * ROTATION_SPEED;
+    camera->angle += camera->rotationVel * ROTATION_SPEED * dt;
 
     if (camera->angle < 0) {
         camera->angle += 2 * M_PI;
@@ -103,7 +103,7 @@ bool handle_exit(Camera* camera, Game* game) {
     printf("texman count: %d\n", game->texman->count);
     printf("read_map_from_file returned: %p\n", (void*)next);
     if (!next) {
-        printf("Failed to load: %s\n", next_file);
+        fprintf(stderr, "Failed to load: %s\n", next_file);
         return false;
     }
 
