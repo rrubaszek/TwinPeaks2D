@@ -11,6 +11,7 @@
 #include <renderer.h>
 #include <framebuffer.h>
 #include <texture.h>
+#include <profiler.h>
 
 
 int main(void) {
@@ -50,6 +51,7 @@ int main(void) {
     }
 
     while (true) {
+        prof_begin(PROF_FRAME);
 
         while (SDL_PollEvent(&event)) {
 
@@ -90,13 +92,21 @@ int main(void) {
         // SDL_RenderFillRect(game.renderer, &celling);  
 
         // Handle visuals - rendering
+        prof_begin(PROF_CLEAR);
         clear_framebuffer(0x00000000);
+        prof_end(PROF_CLEAR);
 
+        prof_begin(PROF_FLOOR);
         render_floor_ceiling(&view, game.texman, game.grid);
+        prof_end(PROF_FLOOR);
+
+        prof_begin(PROF_WALLS);
         raycaster(&view, game.texman, game.grid);
+        prof_end(PROF_WALLS);
         // render_sprites(&cam, game.renderer, game.grid);
 
         // Upload framebuffer
+        prof_begin(PROF_PRESENT);
         SDL_UpdateTexture(
             screen_texture,
             NULL,
@@ -108,6 +118,10 @@ int main(void) {
         SDL_RenderClear(game.renderer);
         SDL_RenderCopy(game.renderer, screen_texture, NULL, NULL);
         SDL_RenderPresent(game.renderer);
+        prof_end(PROF_PRESENT);
+
+        prof_end(PROF_FRAME);
+        prof_frame_done();
 
         SDL_Delay(16);
     }
@@ -143,7 +157,7 @@ void sdl_cleanup(Game* game, int exit_code) {
 
 
 bool sdl_initialize(Game* game) {
-    if (SDL_Init(SDL_INIT_EVERYTHING)) {
+    if (SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "Failed to initialize SDL: %s\n", SDL_GetError());
         return true;
     }

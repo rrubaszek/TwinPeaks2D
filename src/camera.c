@@ -37,7 +37,7 @@ void handle_input(Camera* camera, const Uint8* keys) {
 
 void move(Camera* camera, Game* game) {
 
-    double dx = cosf(camera->angle) * camera->moveVel * MOV_SPEED;
+    double dx = cos(camera->angle) * camera->moveVel * MOV_SPEED;
     double nextX = camera->x + dx;
 
     int posX = (int)floor((nextX + (dx > 0 ? PLAYER_RADIUS : -PLAYER_RADIUS)) / game->grid->tile_size);
@@ -49,7 +49,7 @@ void move(Camera* camera, Game* game) {
 
     bool touching_exit = is_exit(posX, posY, game->grid);
 
-    double dy = sinf(camera->angle) * camera->moveVel * MOV_SPEED;
+    double dy = sin(camera->angle) * camera->moveVel * MOV_SPEED;
     double nextY = camera->y + dy;
 
     posX = (int)floor(camera->x / game->grid->tile_size);
