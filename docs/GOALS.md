@@ -78,6 +78,20 @@ Kryterium: zero alokacji na stercie w pętli klatki.
 
 ## D. Funkcjonalność (z TODO w kodzie)
 - D1 `?` Sprite'y renderowane do framebuffera (obecnie wyłączone, rysowały przez SDL_Renderer)
+- D5 `?` Las z animacją wiatru (wymaga D1)
+  - D5.1 Przezroczystość sprite'ów (alfa z PNG zamiast czarnego tła BMP) i tekstury drzew.
+  - D5.2 Wiele drzew: odrzucanie poza polem widzenia i za odległością, rysowanie od przodu do tyłu
+    z buforem pokrycia (bez overdraw — ta sama idea co odłożone B1.4).
+  - D5.3 Czas w rendererze (suma `dt`) + wiatr: przesunięcie `texX` w poziomie, rosnące ku
+    koronie (`amplitude * wind(t, drzewo) * (1 - v)^2`), faza per drzewo z pozycji, podmuchy
+    jako suma 2–3 sinusów wędrująca przez mapę.
+  - D5.4 Pomiar (profiler + callgrind, np. 200 drzew) względem budżetu klatki.
+  - D5.5 Edytor: pędzel „rozsyp drzewa” (gęstość, losowa skala); opcjonalnie parametry
+    wiatru per mapa.
+  - Opcjonalnie: 2–4 klatki animacji liści, opadające liście, mocniejsza mgła w oddali,
+    `forest.jpeg` jako ściana „skraju lasu” za sprite'ami.
+  Kryterium: scena z ≥ 200 drzewami kołysze się płynnie (drzewa niezsynchronizowane, widoczne
+  podmuchy), czas klatki w budżecie B0.5.
 - D2 `?` Tekstury per kafelek (`texture_id` w `Tile` jest wczytywane, ale nieużywane)
 - D3 `?` Zależne stałe w `constants.h` (TODO autora)
 - D4 `?` Drzwi, przedmioty interaktywne, NPC (typy już zdefiniowane w `sprite.h`)
@@ -97,5 +111,5 @@ Rytm: bloki tematyczne — kończymy blok, zanim zaczniemy następny.
 2. **B0 — pomiar bazowy** + ustalenie budżetu wydajności w Wizji
 3. **B + C — wydajność i pamięć:** B3 → B1 → B2 → B4 → C1 (C2 razem z D1)
    (B3 najpierw: ruch zależny od czasu, zanim optymalizacje zmienią czas klatki)
-4. **D — silnik pod grę:** D3 → D2 → D1 (+ C2) → D4
+4. **D — silnik pod grę:** D3 → D2 → D1 (+ C2) → D5 → D4
 5. **E — systemy gry:** E1 → E2 → E3 → E4 (E5 po decyzji o tekście)
