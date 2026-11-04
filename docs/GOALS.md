@@ -41,11 +41,11 @@ Kryterium: tekstura nie „pływa” przy podchodzeniu do ściany.
 
 ## B. Wydajność obliczeniowa
 
-### B0 `?` Pomiar bazowy (warunek wstępny dla B1–B4)
+### B0 `DONE` (budżet B0.5 — do decyzji) Pomiar bazowy (warunek wstępny dla B1–B4)
 Instrumentacja czasu klatki i sekcji (`/perf-measure`), zapisany wynik bazowy.
 Kryterium: tabela czasów w `docs/perf-log.md` dla aktualnego commita.
 
-### B1 `?` Koszt podłogi i sufitu
+### B1 `WIP` (B1.1) Koszt podłogi i sufitu
 `render_floor_ceiling` przetwarza każdy piksel ekranu (480 000/klatkę) z kilkoma
 wywołaniami funkcji, operacjami zmiennoprzecinkowymi i modulo na piksel; część tych
 pikseli jest potem nadpisywana przez ściany (overdraw).
@@ -56,7 +56,7 @@ Pętla wewnętrzna `raycaster` pisze kolumnami (dostęp do pamięci co 3200 B) p
 `put_pixel` z kontrolą granic i cieniowaniem per piksel.
 Kryterium: j.w.
 
-### B3 `?` Pętla gry niezależna od FPS
+### B3 `DONE` Pętla gry niezależna od FPS
 `SDL_Delay(16)` + czas pracy ≠ stałe 60 FPS; ruch kamery liczony „na klatkę”,
 więc prędkość gracza zależy od wydajności.
 Kryterium: prędkość ruchu identyczna przy sztucznym spowolnieniu klatki.
