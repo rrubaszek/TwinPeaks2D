@@ -1,6 +1,7 @@
 #include <map.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 
 Grid* read_map_from_file(const char* filename, TextureManager* tm) {
     FILE* fptr = fopen(filename, "r");
@@ -72,11 +73,20 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
     }
 
     // Read exits to the next possible maps
-    // Width 15 matches exits[4][16]
-    if (fscanf(fptr, "%15s %15s %15s %15s",
-               g->exits[0], g->exits[1], g->exits[2], g->exits[3]) != 4) {
-        fprintf(stderr, "%s: invalid exits line\n", filename);
-        goto fail;
+    // Read into a larger buffer to detect names that don't fit exits[i]
+    for (int i = 0; i < 4; i++) {
+        char buf[128];
+        if (fscanf(fptr, "%127s", buf) != 1) {
+            fprintf(stderr, "%s: invalid exits line\n", filename);
+            goto fail;
+        }
+        size_t len = strlen(buf);
+        if (len >= sizeof(g->exits[i])) {
+            fprintf(stderr, "%s: exit name too long (max %zu): %s\n",
+                    filename, sizeof(g->exits[i]) - 1, buf);
+            goto fail;
+        }
+        memcpy(g->exits[i], buf, len + 1);
     }
 
     // Read sprites

@@ -47,10 +47,8 @@ void move(Camera* camera, Game* game) {
         camera->x = nextX;
     }
 
-    if(is_exit(posX, posY, game->grid)) {
-        handle_exit(camera, game);
-    }
-    
+    bool touching_exit = is_exit(posX, posY, game->grid);
+
     double dy = sinf(camera->angle) * camera->moveVel * MOV_SPEED;
     double nextY = camera->y + dy;
 
@@ -61,9 +59,15 @@ void move(Camera* camera, Game* game) {
         camera->y = nextY;
     }
 
-    if(is_exit(posX, posY, game->grid)) {
-        handle_exit(camera, game);
+    touching_exit = touching_exit || is_exit(posX, posY, game->grid);
+
+    // One load attempt per entry onto an exit; after a failed load wait
+    // until the player steps off the exit tile before trying again
+    bool changed_map = false;
+    if (touching_exit && !camera->on_exit) {
+        changed_map = handle_exit(camera, game);
     }
+    camera->on_exit = touching_exit && !changed_map;
 
     camera->angle += camera->rotationVel * ROTATION_SPEED;
 
@@ -75,7 +79,7 @@ void move(Camera* camera, Game* game) {
     }
 }
 
-void handle_exit(Camera* camera, Game* game) {
+bool handle_exit(Camera* camera, Game* game) {
     printf("handle_exit: exits=[%s][%s][%s][%s]\n",
         game->grid->exits[0], game->grid->exits[1],
         game->grid->exits[2], game->grid->exits[3]);
@@ -83,13 +87,15 @@ void handle_exit(Camera* camera, Game* game) {
     char next_file[128];
     int dir = -1;
 
-    // determine which exit to use and copy filename safely
-    if (strcmp(game->grid->exits[2], "NULL") != 0) { strncpy(next_file, game->grid->exits[2], 128); dir = 2; }
-    else if (strcmp(game->grid->exits[3], "NULL") != 0) { strncpy(next_file, game->grid->exits[3], 128); dir = 3; }
-    else if (strcmp(game->grid->exits[1], "NULL") != 0) { strncpy(next_file, game->grid->exits[1], 128); dir = 1; }
-    else if (strcmp(game->grid->exits[0], "NULL") != 0) { strncpy(next_file, game->grid->exits[0], 128); dir = 0; }
+    // determine which exit to use
+    if (strcmp(game->grid->exits[2], "NULL") != 0) dir = 2;
+    else if (strcmp(game->grid->exits[3], "NULL") != 0) dir = 3;
+    else if (strcmp(game->grid->exits[1], "NULL") != 0) dir = 1;
+    else if (strcmp(game->grid->exits[0], "NULL") != 0) dir = 0;
 
-    if (dir == -1) return;
+    if (dir == -1) return false;
+
+    snprintf(next_file, sizeof(next_file), "%s", game->grid->exits[dir]);
 
     printf("Loading: %s dir=%d\n", next_file, dir);
 
@@ -98,7 +104,7 @@ void handle_exit(Camera* camera, Game* game) {
     printf("read_map_from_file returned: %p\n", (void*)next);
     if (!next) {
         printf("Failed to load: %s\n", next_file);
-        return;
+        return false;
     }
 
     printf("Freeing old grid...\n");
@@ -127,6 +133,7 @@ void handle_exit(Camera* camera, Game* game) {
             break;
     }
     printf("handle_exit complete\n");
+    return true;
 }
 
 

@@ -1,6 +1,7 @@
 #include <texture.h>
 
 #include <stdlib.h>
+#include <string.h>
 #include <SDL2/SDL_image.h>
 
 Texture* load_texture(const char* path) {
@@ -39,9 +40,12 @@ Texture* load_texture(const char* path) {
         return NULL;
     }
 
-    Uint32* src_pixels = (uint32_t*)formatted_surface->pixels;
-    for (int i = 0; i < size; i++) {
-        texture->pixels[i] = src_pixels[i];
+    // Copy row by row: surface rows may be padded (pitch >= width * 4)
+    const Uint8* src = (const Uint8*)formatted_surface->pixels;
+    for (int y = 0; y < texture->height; y++) {
+        memcpy(&texture->pixels[y * texture->width],
+               src + y * formatted_surface->pitch,
+               texture->width * sizeof(Uint32));
     }
 
     SDL_FreeSurface(formatted_surface);
