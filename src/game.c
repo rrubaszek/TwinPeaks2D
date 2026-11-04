@@ -44,6 +44,10 @@ int main(void) {
         SCREEN_WIDTH,
         SCREEN_HEIGHT
     );
+    if (!screen_texture) {
+        fprintf(stderr, "Failed to create screen texture: %s\n", SDL_GetError());
+        sdl_cleanup(&game, EXIT_FAILURE);
+    }
 
     while (true) {
 
@@ -115,12 +119,7 @@ int main(void) {
 
 
 void sdl_cleanup(Game* game, int exit_code) {
-    SDL_DestroyRenderer(game->renderer);
-    SDL_DestroyWindow(game->window);
-    SDL_Quit();
-
-    printf("Window and renderer closed successfully.\n");
-
+    // Release in reverse order of initialization
     if (game->grid){
         free_grid(game->grid);
         printf("Map destroyed successfully\n");
@@ -131,6 +130,13 @@ void sdl_cleanup(Game* game, int exit_code) {
         free(game->texman);
         printf("Textures destroyed succcessfully\n");
     }
+
+    // Destroying the renderer also frees textures created with it
+    SDL_DestroyRenderer(game->renderer);
+    SDL_DestroyWindow(game->window);
+    SDL_Quit();
+
+    printf("Window and renderer closed successfully.\n");
 
     exit(exit_code);
 }
@@ -155,10 +161,14 @@ bool sdl_initialize(Game* game) {
     }
 
     game->texman = calloc(1, sizeof(TextureManager));
-    game->texman->count = 0;
+    if (!game->texman) {
+        fprintf(stderr, "Failed to allocate texture manager\n");
+        return true;
+    }
     game->grid = read_map_from_file("maps/map.txt", game->texman);
     if (!game->grid) {
-        printf("Failed to create game grid: %s\n", strerror(errno));
+        // read_map_from_file already printed the reason
+        fprintf(stderr, "Failed to create game grid\n");
         return true;
     }
 

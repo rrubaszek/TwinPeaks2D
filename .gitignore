@@ -6,5 +6,5 @@ build/
 .venv/
 
 maps/textures/
-
+ 
 .claude/settings.local.json

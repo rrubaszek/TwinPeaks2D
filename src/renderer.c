@@ -149,6 +149,7 @@ RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, co
 // TODO: Implement specific textures via texture manager
 void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
     Texture* wall_texture = texman_get(tm, g->wall_tex_id);
+    if (!wall_texture) return;
 
     for (int i = 0; i < SCREEN_WIDTH; i++) {
 
@@ -157,7 +158,11 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
         double rayDirY = view->dirY + view->planeY * cameraX;
 
         RaycastHit hit = cast_ray(view->posX, view->posY, rayDirX, rayDirY, g);
-        z_buffer[i] = hit.perpWallDist;
+
+        // Guard against division by zero when standing right at a wall
+        double dist = hit.perpWallDist;
+        if (dist < 1e-4) dist = 1e-4;
+        z_buffer[i] = dist;
 
         // texture X coordinate on the wall
         double wallX = (hit.side == 0)
@@ -169,17 +174,27 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
         if ((hit.side == 0 && rayDirX > 0) || (hit.side == 1 && rayDirY < 0))
             texX = wall_texture->width - texX - 1;
 
-        int wall_height = (int)(SCREEN_HEIGHT / hit.perpWallDist);
-        if (wall_height > SCREEN_HEIGHT) wall_height = SCREEN_HEIGHT;
+        // Full (unclipped) wall height - only the drawn range is clipped,
+        // so the texture is cropped at screen edges instead of squeezed
+        int line_height = (int)(SCREEN_HEIGHT / dist);
+        if (line_height < 1) line_height = 1;
 
-        int draw_start = (SCREEN_HEIGHT - wall_height) / 2;
-        int draw_end   = (SCREEN_HEIGHT + wall_height) / 2;
+        int draw_start = (SCREEN_HEIGHT - line_height) / 2;
+        int draw_end   = (SCREEN_HEIGHT + line_height) / 2;
+        if (draw_start < 0) draw_start = 0;
+        if (draw_end > SCREEN_HEIGHT) draw_end = SCREEN_HEIGHT;
 
-        float shade = compute_shade(hit.perpWallDist, hit.side == 0 ? 0.9f : 0.7f);
+        float shade = compute_shade(dist, hit.side == 0 ? 0.9f : 0.7f);
+
+        // Texture rows per screen pixel; start offset skips the off-screen part
+        int tex_h = wall_texture->height;
+        double step = (double)tex_h / line_height;
+        double tex_pos = (draw_start - (SCREEN_HEIGHT - line_height) / 2.0) * step;
 
         for (int y = draw_start; y < draw_end; y++) {
-            int d = y * 256 - SCREEN_HEIGHT * 128 + wall_height * 128;
-            int texY = ((d * wall_texture->height) / wall_height) / 256;
+            int texY = (int)tex_pos;
+            if (texY >= tex_h) texY = tex_h - 1;
+            tex_pos += step;
 
             Uint32 color = wall_texture->pixels[texY * wall_texture->width + texX];
             put_pixel(i, y, apply_shade(color, shade));
