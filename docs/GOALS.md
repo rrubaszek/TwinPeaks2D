@@ -21,19 +21,19 @@
 
 ## A. Poprawność i stabilność (fundament przed optymalizacją)
 
-### A1 `?` Cache tekstur rzeczywiście deduplikuje
+### A1 `?` Cache tekstur rzeczywiście deduplikuje -- DONE
 Problem: `texman_load` porównuje `slots[i]->name`, ale pole `name` nigdy nie jest
 ustawiane w `load_texture`. Każde wczytanie mapy dodaje nowe sloty; brak kontroli
 `count < MAX_TEXTURES` → po kilku przejściach między mapami zapis poza tablicą.
 Kryterium: wielokrotne przejścia między mapami nie zwiększają `tm->count`; ASan czysty.
 
-### A2 `?` Odporność na błędy ładowania
+### A2 `?` Odporność na błędy ładowania -- DONE
 Problem: `load_texture` może zwrócić NULL, a `raycaster` dereferuje teksturę ściany
 bez sprawdzenia; wyniki `malloc`/`fscanf` w parserze mapy nie są sprawdzane;
 `fscanf("%s")` do `exits[4][16]` bez limitu długości.
 Kryterium: brak pliku tekstury / błędna mapa → komunikat i czyste wyjście, nie crash.
 
-### A3 `?` Mapowanie tekstury ścian przy bliskim podejściu
+### A3 `?` Mapowanie tekstury ścian przy bliskim podejściu -- DONE
 Problem: `wall_height` jest obcinane do `SCREEN_HEIGHT` przed wyliczeniem `texY`,
 więc przy ścianie tuż przed kamerą tekstura jest ściśnięta zamiast przycięta.
 Brak ochrony przed `perpWallDist == 0`.

@@ -179,7 +179,8 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
         int line_height = (int)(SCREEN_HEIGHT / dist);
         if (line_height < 1) line_height = 1;
 
-        int draw_start = (SCREEN_HEIGHT - line_height) / 2;
+        int wall_top   = (SCREEN_HEIGHT - line_height) / 2;
+        int draw_start = wall_top;
         int draw_end   = (SCREEN_HEIGHT + line_height) / 2;
         if (draw_start < 0) draw_start = 0;
         if (draw_end > SCREEN_HEIGHT) draw_end = SCREEN_HEIGHT;
@@ -189,7 +190,7 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
         // Texture rows per screen pixel; start offset skips the off-screen part
         int tex_h = wall_texture->height;
         double step = (double)tex_h / line_height;
-        double tex_pos = (draw_start - (SCREEN_HEIGHT - line_height) / 2.0) * step;
+        double tex_pos = (draw_start - wall_top) * step;
 
         for (int y = draw_start; y < draw_end; y++) {
             int texY = (int)tex_pos;

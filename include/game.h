@@ -17,5 +17,6 @@ typedef struct {
 
 bool sdl_initialize(Game* game);
 void sdl_cleanup(Game* game, int exit_code);
+void toggle_fullscreen(Game* game);
 
 #endif // GAME_H

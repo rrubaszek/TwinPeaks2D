@@ -11,6 +11,8 @@
 #include <renderer.h>
 #include <framebuffer.h>
 #include <texture.h>
+#include <profiler.h>
+#include <timer.h>
 
 
 int main(void) {
@@ -49,7 +51,14 @@ int main(void) {
         sdl_cleanup(&game, EXIT_FAILURE);
     }
 
+    double last_ms = timer_now_ms();
     while (true) {
+        double now_ms = timer_now_ms();
+        double dt = (now_ms - last_ms) / 1000.0;
+        last_ms = now_ms;
+        if (dt > MAX_DT) dt = MAX_DT;
+
+        prof_begin(PROF_FRAME);
 
         while (SDL_PollEvent(&event)) {
 
@@ -60,6 +69,9 @@ int main(void) {
                 case SDL_KEYDOWN:
                     if (event.key.keysym.sym == SDLK_ESCAPE) {
                         sdl_cleanup(&game, EXIT_SUCCESS);
+                    }
+                    if (event.key.keysym.sym == SDLK_F11 && !event.key.repeat) {
+                        toggle_fullscreen(&game);
                     }
                     break;
             }
@@ -74,7 +86,7 @@ int main(void) {
         handle_input(&cam, keys);
 
         // Handle move
-        move(&cam, &game);
+        move(&cam, &game, dt);
 
         view = camera_get_view(&cam, game.grid);
 
@@ -90,13 +102,21 @@ int main(void) {
         // SDL_RenderFillRect(game.renderer, &celling);  
 
         // Handle visuals - rendering
+        prof_begin(PROF_CLEAR);
         clear_framebuffer(0x00000000);
+        prof_end(PROF_CLEAR);
 
+        prof_begin(PROF_FLOOR);
         render_floor_ceiling(&view, game.texman, game.grid);
+        prof_end(PROF_FLOOR);
+
+        prof_begin(PROF_WALLS);
         raycaster(&view, game.texman, game.grid);
+        prof_end(PROF_WALLS);
         // render_sprites(&cam, game.renderer, game.grid);
 
         // Upload framebuffer
+        prof_begin(PROF_PRESENT);
         SDL_UpdateTexture(
             screen_texture,
             NULL,
@@ -108,8 +128,16 @@ int main(void) {
         SDL_RenderClear(game.renderer);
         SDL_RenderCopy(game.renderer, screen_texture, NULL, NULL);
         SDL_RenderPresent(game.renderer);
+        prof_end(PROF_PRESENT);
 
-        SDL_Delay(16);
+        prof_end(PROF_FRAME);
+        prof_frame_done();
+
+        // Frame cap: sleep only for what is left of the frame budget
+        double frame_ms = timer_now_ms() - now_ms;
+        if (frame_ms < FRAME_DELAY) {
+            SDL_Delay((Uint32)(FRAME_DELAY - frame_ms));
+        }
     }
 
     sdl_cleanup(&game, EXIT_SUCCESS);
@@ -143,20 +171,29 @@ void sdl_cleanup(Game* game, int exit_code) {
 
 
 bool sdl_initialize(Game* game) {
-    if (SDL_Init(SDL_INIT_EVERYTHING)) {
+    if (SDL_Init(SDL_INIT_VIDEO)) {
         fprintf(stderr, "Failed to initialize SDL: %s\n", SDL_GetError());
         return true;
     }
     
     game->window = SDL_CreateWindow("Twin Peaks", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, SCREEN_WIDTH, SCREEN_HEIGHT, 0);
     if (!game->window) {
-        printf("Failed to create window: %s\n", SDL_GetError());
+        fprintf(stderr, "Failed to create window: %s\n", SDL_GetError());
         return true;
     }
 
     game->renderer = SDL_CreateRenderer(game->window, -1, 0);
     if (!game->renderer) {
-        printf("Failed to create renderer: %s\n", SDL_GetError());
+        fprintf(stderr, "Failed to create renderer: %s\n", SDL_GetError());
+        return true;
+    }
+
+    // Nearest-neighbour scaling: crisp pixels when the window is larger than the render
+    SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, "0");
+
+    // Fixed 800x600 render, scaled to the window with aspect ratio kept (letterbox)
+    if (SDL_RenderSetLogicalSize(game->renderer, SCREEN_WIDTH, SCREEN_HEIGHT)) {
+        fprintf(stderr, "Failed to set logical size: %s\n", SDL_GetError());
         return true;
     }
 
@@ -175,4 +212,15 @@ bool sdl_initialize(Game* game) {
     printf("Window, renderer and grid initialized successfully.\n");
 
     return false;
+}
+
+
+// Switches between windowed and desktop fullscreen; on failure keeps the current mode
+void toggle_fullscreen(Game* game) {
+    Uint32 flags = SDL_GetWindowFlags(game->window);
+    bool is_fullscreen = flags & SDL_WINDOW_FULLSCREEN_DESKTOP;
+
+    if (SDL_SetWindowFullscreen(game->window, is_fullscreen ? 0 : SDL_WINDOW_FULLSCREEN_DESKTOP)) {
+        fprintf(stderr, "Failed to toggle fullscreen: %s\n", SDL_GetError());
+    }
 }

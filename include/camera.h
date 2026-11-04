@@ -13,10 +13,10 @@ Maybe someday there will be different speeds for walking, running etc. but for n
 */
 
 typedef struct {
-    float x, y;
-    float angle;
+    double x, y;
+    double angle;
     float moveVel;
-    float rotationVel;
+    int rotationVel;
     bool on_exit; // standing on an exit whose map failed to load - don't retry
 } Camera;
 
@@ -29,7 +29,7 @@ typedef struct {
 CameraView camera_get_view(Camera* camera, const Grid* g);
 void handle_input(Camera* camera, const Uint8* keys);
 bool handle_exit(Camera* camera, Game* game);
-void move(Camera* camera, Game* game);
+void move(Camera* camera, Game* game, double dt);
 bool is_wall(int posX, int posY, Grid* g);
 bool is_exit(int posX, int posY, Grid* g);
 
