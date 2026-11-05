@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from tpedit.canvas import CELL, Tool
 from tpedit.main_window import MAPS_DIR, MainWindow
 from tpmap.model import SpriteType, TileType
-from tpmap.txt_format import load_map
+from tpmap.txt_format import load_map, validate
 
 B = Qt.MouseButton
 NO_MOD = Qt.KeyboardModifier.NoModifier
@@ -128,6 +128,9 @@ def test_save_and_reload(win, tmp_path):
     win.canvas.set_tool(Tool.SPRITE)
     mouse(win, "press", tile_pos(win, 5, 5))
     mouse(win, "release", tile_pos(win, 5, 5))
+    assert any("not in texture table" in i.message for i in validate(win.map))
+    win.sprite_panel.choose_texture("sprite_pie.bmp")
+    assert win.map.textures == ["sprite_pie.bmp"] and win.map.sprites[0].texture_id == 0
 
     out = tmp_path / "m.txt"
     assert win._write(out)

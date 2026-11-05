@@ -32,7 +32,7 @@ class MainWindow(QMainWindow):
 
         self.tools = ToolPanel()
         self.map_panel = MapPanel(PROJECT_ROOT, TEXTURES_DIR)
-        self.sprite_panel = SpritePanel()
+        self.sprite_panel = SpritePanel(TEXTURES_DIR)
         self.issues = IssuesPanel()
         self._dock("Tools", self.tools, Qt.DockWidgetArea.LeftDockWidgetArea)
         self._dock("Map", self.map_panel, Qt.DockWidgetArea.RightDockWidgetArea)
@@ -124,7 +124,7 @@ class MainWindow(QMainWindow):
         self.path = path
         self.canvas.set_map(m)
         self.map_panel.set_map(m)
-        self.sprite_panel.set_sprite(None)
+        self.sprite_panel.set_map(m)
         self.dirty = False
         self._update_title()
         self._run_validation()

@@ -209,9 +209,10 @@ class MapPanel(QWidget):
 class SpritePanel(QWidget):
     sprite_edited = Signal(object)   # Sprite
 
-    def __init__(self, parent=None):
+    def __init__(self, textures_dir: Path, parent=None):
         super().__init__(parent)
         self.sprite: Sprite | None = None
+        self.map: MapData | None = None  # owns the texture table the sprite indexes
         form = QFormLayout(self)
         self.info = QLabel("No sprite selected")
         form.addRow(self.info)
@@ -220,9 +221,9 @@ class SpritePanel(QWidget):
         for st in SpriteType:
             self.type.addItem(swatch(SPRITE_COLORS[st]), st.name.capitalize(), st)
         self.x, self.y = self._dspin(0, MAX_MAP_SIDE, 0.5), self._dspin(0, MAX_MAP_SIDE, 0.5)
-        self.texture_id = QSpinBox()
-        self.texture_id.setRange(0, 9999)
-        self.texture_id.setToolTip("Stored in the file; the game does not map it to a texture yet")
+        self.texture = QComboBox()  # not editable: typing would add partial names to the table
+        self.texture.addItems(texture_names(textures_dir))
+        self.texture.setToolTip("Picked texture is added to the map's texture table if missing")
         self.scale = self._dspin(0.01, 10, 0.05)
         self.scale.setToolTip("1.0 = person height, 0.3 = mug")
         self.collision_r = self._dspin(0, 5, 0.05)
@@ -231,13 +232,14 @@ class SpritePanel(QWidget):
         form.addRow("Type", self.type)
         form.addRow("X (tiles)", self.x)
         form.addRow("Y (tiles)", self.y)
-        form.addRow("Texture id", self.texture_id)
+        form.addRow("Texture", self.texture)
         form.addRow("Scale", self.scale)
         form.addRow("Collision radius", self.collision_r)
 
         self.type.currentIndexChanged.connect(self._commit)
-        for w in (self.x, self.y, self.scale, self.collision_r, self.texture_id):
+        for w in (self.x, self.y, self.scale, self.collision_r):
             w.valueChanged.connect(self._commit)
+        self.texture.activated.connect(lambda _: self.choose_texture(self.texture.currentText()))
         self.set_sprite(None)
 
     @staticmethod
@@ -248,16 +250,34 @@ class SpritePanel(QWidget):
         s.setSingleStep(step)
         return s
 
+    def set_map(self, m: MapData) -> None:
+        self.map = m
+        self.set_sprite(None)
+
+    def choose_texture(self, name: str) -> None:
+        """Points the selected sprite at `name`, adding it to the texture table if needed."""
+        s, m = self.sprite, self.map
+        if s is None or m is None or not name:
+            return
+        if name not in m.textures:
+            m.textures.append(name)
+        s.texture_id = m.textures.index(name)
+        self.sprite_edited.emit(s)
+
     def set_sprite(self, s: Sprite | None) -> None:
         self.sprite = None  # block _commit while filling widgets
-        for w in (self.type, self.x, self.y, self.texture_id, self.scale, self.collision_r):
+        for w in (self.type, self.x, self.y, self.texture, self.scale, self.collision_r):
             w.setEnabled(s is not None)
         if s is not None:
             self.info.setText("Selected sprite")
             self.type.setCurrentIndex(self.type.findData(s.type))
             self.x.setValue(s.x)
             self.y.setValue(s.y)
-            self.texture_id.setValue(s.texture_id)
+            textures = self.map.textures if self.map else []
+            name = textures[s.texture_id] if 0 <= s.texture_id < len(textures) else ""
+            if name and self.texture.findText(name) < 0:
+                self.texture.addItem(name)  # in the table, but not in maps/textures
+            self.texture.setCurrentIndex(self.texture.findText(name) if name else -1)
             self.scale.setValue(s.scale)
             self.collision_r.setValue(s.collision_r)
         else:
@@ -270,7 +290,6 @@ class SpritePanel(QWidget):
             return
         s.type = self.type.currentData()
         s.x, s.y = self.x.value(), self.y.value()
-        s.texture_id = self.texture_id.value()
         s.scale = self.scale.value()
         s.collision_r = self.collision_r.value()
         self.sprite_edited.emit(s)
