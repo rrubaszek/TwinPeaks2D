@@ -30,6 +30,7 @@ typedef struct {
     Tile** map;
 
     Sprite* sprites;
+    SpriteOrder* sprite_order; // scratch for render_sprites, allocated with sprites
 
     int sprite_count;
 

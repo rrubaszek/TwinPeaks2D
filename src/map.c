@@ -117,7 +117,8 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
     }
     if (g->sprite_count > 0) {
         g->sprites = malloc(g->sprite_count * sizeof(Sprite));
-        if (!g->sprites) {
+        g->sprite_order = malloc(g->sprite_count * sizeof(SpriteOrder));
+        if (!g->sprites || !g->sprite_order) {
             fprintf(stderr, "%s: out of memory\n", filename);
             goto fail;
         }
@@ -164,6 +165,7 @@ void free_grid(Grid* g) {
     }
     free(g->map);
     free(g->sprites);
+    free(g->sprite_order);
     free(g);
 }
 

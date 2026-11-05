@@ -25,6 +25,5 @@ float compute_shade(double distance, float side_factor);
 RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, const Grid* g);
 void render_sprites(CameraView* view, TextureManager* tm, const Grid* g);
 void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g);
-int comp (const void * elem1, const void * elem2);
 
 #endif // RENDERER_H

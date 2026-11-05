@@ -14,7 +14,8 @@ float compute_shade(double distance, float side_factor) {
     return side_factor * brightness;
 }
 
-int comp (const void * elem1, const void * elem2) {
+// qsort comparator: farthest sprite first
+static int compare_sprite_distance_desc(const void * elem1, const void * elem2) {
     double f = (*(SpriteOrder*)elem1).distance;
     double s = (*(SpriteOrder*)elem2).distance;
     if (f > s) return -1; // descending order
@@ -205,34 +206,48 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
     }
 }
 
+// compute_shade() reaches 0 at distance 10 - sprites past it would be drawn black
+#define SPRITE_MAX_DEPTH 10.0
+
 // TODO: Implement specific textures for sprites
 // Draws sprites into the framebuffer, far to near, hidden behind walls via z_buffer.
 void render_sprites(CameraView* view, TextureManager* tm, const Grid* g) {
-    if (g->sprite_count == 0) return; // zero-length VLA is UB
+    if (g->sprite_count == 0) return; // sprite_order is NULL then; qsort requires non-NULL
 
-    SpriteOrder sprite_order[g->sprite_count];
-    for (int i = 0; i < g->sprite_count; i++) {
-        double dx = g->sprites[i].x - view->posX;
-        double dy = g->sprites[i].y - view->posY;
-        sprite_order[i].index = i;
-        sprite_order[i].distance = dx * dx + dy * dy; // squared is enough for sorting
-    }
-    qsort(sprite_order, g->sprite_count, sizeof(SpriteOrder), comp); // farthest first
+    SpriteOrder* sprite_order = g->sprite_order; // pre-allocated per map, no per-frame alloc
 
     // Inverse camera matrix - the same for every sprite
     double invDet = 1.0 / (view->planeX * view->dirY - view->dirX * view->planeY);
 
+    // Transform + cull first, so only potentially visible sprites get sorted and drawn
+    int n = 0;
     for (int i = 0; i < g->sprite_count; i++) {
-        const Sprite* sprite = &g->sprites[sprite_order[i].index];
+        const Sprite* sprite = &g->sprites[i];
         const Texture* tex = texman_get(tm, sprite->texture_id);
-        if (!tex) continue;
+        if (!sprite->visible || !tex) continue;
 
         double spriteX = sprite->x - view->posX;
         double spriteY = sprite->y - view->posY;
-
         double transformX = invDet * ( view->dirY * spriteX - view->dirX * spriteY);
         double transformY = invDet * (-view->planeY * spriteX + view->planeX * spriteY);
-        if (transformY < 1e-2) continue; // behind camera or too close (int overflow below)
+
+        // Behind camera / too close (int overflow later) / beyond where shading reaches 0
+        if (transformY < 1e-2 || transformY >= SPRITE_MAX_DEPTH) continue;
+
+        // Off-screen sideways: centre offset minus half sprite width, in units of depth
+        double half_w = (double)SCREEN_HEIGHT / SCREEN_WIDTH * sprite->scale
+                        * tex->width / tex->height;
+        if (fabs(transformX) - half_w > transformY) continue;
+
+        sprite_order[n++] = (SpriteOrder){ i, transformY, transformX };
+    }
+    qsort(sprite_order, n, sizeof(SpriteOrder), compare_sprite_distance_desc); // farthest first
+
+    for (int i = 0; i < n; i++) {
+        const Sprite* sprite = &g->sprites[sprite_order[i].index];
+        const Texture* tex = texman_get(tm, sprite->texture_id);
+        double transformX = sprite_order[i].transformX;
+        double transformY = sprite_order[i].distance;
 
         // transformY is depth, transformX is horizontal offset
         int sprite_screen_x = (int)((SCREEN_WIDTH / 2) * (1 + transformX / transformY));

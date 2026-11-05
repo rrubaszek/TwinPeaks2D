@@ -5,7 +5,8 @@
 
 typedef struct {
     int index;
-    double distance;
+    double distance;   // depth along the view direction (transformY), sort key
+    double transformX; // horizontal offset in camera space
 } SpriteOrder;
 
 typedef enum {

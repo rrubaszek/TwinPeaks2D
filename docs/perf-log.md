@@ -103,3 +103,63 @@ wywołane 2× (rozgrzewka: wczytanie tekstur map2) + 20× + 100× (map.txt ↔ m
 ASan+UBSan: te same 122 przejścia — brak błędów; normalne uruchomienie + SIGTERM
 (czyste wyjście przez `sdl_cleanup`) — LeakSanitizer bez raportu.
 Valgrind memcheck pominięty (mesa pod valgrindem bardzo wolna; ASan wystarczył).
+
+## S8: koszt sprite'ów — 200 sprite'ów (11b5f6d vs 11b5f6d + S4/S5, 2026-11-05)
+
+Metoda: headless bench (bez okna i present) — ten sam kod `render_floor_ceiling`,
+`raycaster`, `render_sprites` co w grze, build `-O2 -g`, CPU i7-5500U.
+Mapa testowa (generowana poza repo, stałe ziarno): 24×24, ściany na brzegach, 5 filarów,
+200 sprite'ów z 5 PNG (`generate_sprites.py`), scale 0.3–1.0.
+„stary” = commit 11b5f6d (przed S4/S5), „nowy” = S4 (bufor sortowania per mapa) + S5 (odrzucanie
+przed sortowaniem). 3 serie × 300 klatek naprzemiennie stary/nowy + callgrind 1 klatka na widok.
+
+Widoki:
+- A (1200, 1150, 0.3) — środek sali, dużo sprite'ów w polu widzenia, stołek i roślina blisko
+- B (300, 1150, π) — przodem do zachodniej ściany, ~1 sprite widoczny
+- C (995, 1139, 0) — 0,4 kafelka od rośliny; dwie rośliny zasłaniają cały ekran (najgorszy przypadek)
+
+Czasy (ms, średnia z 3 serii × 300 klatek):
+| Widok | Sekcja               | seria 1 st/nw | seria 2 st/nw | seria 3 st/nw | śr. stary | śr. nowy |
+|-------|----------------------|---------------|---------------|---------------|-----------|----------|
+| A     | render_floor_ceiling | 2.207 / 2.145 | 2.325 / 2.312 | 2.499 / 2.412 | 2.34      | 2.29     |
+| A     | raycaster            | 0.379 / 0.353 | 0.401 / 0.420 | 0.506 / 0.429 | 0.43      | 0.40     |
+| A     | render_sprites       | 0.628 / 0.579 | 0.651 / 0.598 | 0.698 / 0.617 | 0.66      | 0.60     |
+| B     | render_floor_ceiling | 2.139 / 2.148 | 2.240 / 2.460 | 2.243 / 2.671 | 2.21      | 2.43     |
+| B     | raycaster            | 1.089 / 1.090 | 1.192 / 1.399 | 1.137 / 1.481 | 1.14      | 1.32     |
+| B     | render_sprites       | 0.042 / 0.024 | 0.045 / 0.026 | 0.045 / 0.030 | 0.044     | 0.027    |
+| C     | render_floor_ceiling | 2.063 / 2.227 | 2.574 / 2.216 | 2.334 / 2.228 | 2.32      | 2.22     |
+| C     | raycaster            | 0.299 / 0.331 | 0.397 / 0.328 | 0.350 / 0.322 | 0.35      | 0.33     |
+| C     | render_sprites       | 2.814 / 2.935 | 3.449 / 2.910 | 3.156 / 2.982 | 3.14      | 2.94     |
+
+Rozrzut ms między seriami ±10–15% (podłoga i ściany w B różnią się, choć kod jest ten sam) —
+miarodajny jest callgrind.
+
+Callgrind (1 klatka, Ir inclusive):
+| Widok | Funkcja              | stary      | nowy       | różnica |
+|-------|----------------------|------------|------------|---------|
+| A     | render_floor_ceiling | 17 299 364 | 17 299 364 | 0       |
+| A     | raycaster            |  1 926 577 |  1 926 577 | 0       |
+| A     | render_sprites       |  5 322 163 |  5 055 767 | −5%     |
+| A     | qsort (+ komparator) |     78 852 |      4 599 | −94%    |
+| B     | render_floor_ceiling | 17 299 364 | 17 299 364 | 0       |
+| B     | raycaster            |  6 542 423 |  6 542 423 | 0       |
+| B     | render_sprites       |    253 844 |    184 585 | −27%    |
+| B     | qsort (+ komparator) |     78 324 |         19 | —       |
+| C     | render_floor_ceiling | 17 299 364 | 17 299 364 | 0       |
+| C     | raycaster            |  1 857 689 |  1 857 689 | 0       |
+| C     | render_sprites       | 23 596 360 | 23 227 758 | −1.6%   |
+| C     | qsort (+ komparator) |     78 230 |      6 336 | —       |
+
+Rozkład w widoku C (nowy, pętla wewnętrzna `render_sprites`): ~980 tys. iteracji na klatkę
+(ekran 2× — dwie nakładające się rośliny), ~23 Ir/piksel: odczyt tekseli + clamp `texY`,
+`if` na alfę, `shade_mul`. Piksele przezroczyste kosztują prawie tyle co widoczne.
+W widoku B pętla odrzucania 200 sprite'ów to ~9 tys. Ir (~45 Ir/sprite).
+
+Wnioski:
+- S5 (odrzucanie): −5% Ir przy wielu sprite'ach w kadrze, −27% przy kilku; praca per sprite
+  (transformacja + sortowanie 200 szt.) była już tania (~80 tys. Ir, ~0,2% klatki).
+- Koszt = wypełnianie pikseli. Jeden sprite na cały ekran ≈ 2,9 ms, więcej niż podłoga + ściany.
+- Bufor pokrycia front-to-back (D5.2) teraz nieuzasadniony: nie pomaga na przezroczyste piksele
+  ani na pojedynczy duży sprite. Kandydaci na dalsze kroki: zakres nieprzezroczystych wierszy
+  per kolumna tekstury (liczony przy wczytaniu), krok stałoprzecinkowy bez clampa w pętli
+  (jak B1/B2 dla ścian).
