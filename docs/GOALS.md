@@ -103,6 +103,27 @@ Kryterium: zero alokacji na stercie w pętli klatki.
 - E4 `WIP` Edytor map (format `maps/*.txt`) — v1 w `editor/` (PySide6): kafelki + sprite'y, walidacja; v2: undo, tekstury per kafelek, start gracza
 - E5 `?` Wyświetlanie tekstu / HUD (zależne od decyzji w Wizji)
 
+## F. Kierunek wizualny (referencja: demo BLOK — retro PS1, wnętrza lat 90.)
+Cel przykładowy: wnętrze Double R Diner (szachownica na podłodze, boazeria, lada ze
+stołkami, boksy przy oknach, gablota z ciastami, ciepłe lampy).
+- F1 `?` Post-process „retro”: renderowanie w niższej rozdzielczości wewnętrznej +
+  powiększenie bez wygładzania, redukcja liczby kolorów na kanał, dithering uporządkowany
+  (Bayer). Parametry regulowane stałymi (jak w BLOK: pikselizacja, precyzja koloru).
+  Kryterium: efekt włączany/wyłączany klawiszem, czas klatki w budżecie B0.5.
+- F2 `?` Podłoga i sufit per kafelek (dziś jedna tekstura na mapę: `floor_tex_id`,
+  `ceiling_tex_id`) — wymaga zmiany formatu mapy i edytora (E4).
+  Kryterium: mapa z dwoma rodzajami podłogi (np. szachownica w dinerze, deski w kuchni).
+- F3 `?` Oświetlenie: poziom światła per kafelek + mgła w kolor (nie tylko przyciemnianie).
+  Kryterium: ciemny kąt i jasna strefa pod lampą na jednej mapie.
+- F4 `?` Rekwizyty jako sprite'y (lada, stołki, boksy, gablota, szafa grająca) — oparte na
+  D1 + D5.1; opcjonalnie sprite'y 8-kierunkowe dla dużych mebli.
+  Kryterium: scena dinera z ≥ 10 rekwizytami, poprawne zasłanianie przez ściany.
+- F5 `?` Ściany o różnej wysokości (pole `Tile.height` już istnieje) — np. lada
+  „do pasa”, nad którą widać dalszą część sali. Duża zmiana w `cast_ray`/`raycaster`
+  (promień nie kończy się na pierwszej ścianie).
+  Kryterium: lada widoczna jako niska ściana, za nią widoczne tło.
+- F6 `?` Mapa „Double R Diner” jako test całości.
+
 ---
 
 ## Kolejność
@@ -113,3 +134,4 @@ Rytm: bloki tematyczne — kończymy blok, zanim zaczniemy następny.
    (B3 najpierw: ruch zależny od czasu, zanim optymalizacje zmienią czas klatki)
 4. **D — silnik pod grę:** D3 → D2 → D1 (+ C2) → D5 → D4
 5. **E — systemy gry:** E1 → E2 → E3 → E4 (E5 po decyzji o tekście)
+6. **F — kierunek wizualny:** F1 (niezależne, można wcześniej) → F2 → F3 → F4 (po D1) → F5 → F6
