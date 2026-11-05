@@ -207,9 +207,7 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
 
 // TODO: Implement specific textures for sprites
 // Draws sprites into the framebuffer, far to near, hidden behind walls via z_buffer.
-// Solid colour for now; textures come in a later stage.
 void render_sprites(CameraView* view, TextureManager* tm, const Grid* g) {
-    (void)tm; // used once sprites are textured
     if (g->sprite_count == 0) return; // zero-length VLA is UB
 
     SpriteOrder sprite_order[g->sprite_count];
@@ -226,33 +224,54 @@ void render_sprites(CameraView* view, TextureManager* tm, const Grid* g) {
 
     for (int i = 0; i < g->sprite_count; i++) {
         const Sprite* sprite = &g->sprites[sprite_order[i].index];
+        const Texture* tex = texman_get(tm, sprite->texture_id);
+        if (!tex) continue;
+
         double spriteX = sprite->x - view->posX;
         double spriteY = sprite->y - view->posY;
 
         double transformX = invDet * ( view->dirY * spriteX - view->dirX * spriteY);
         double transformY = invDet * (-view->planeY * spriteX + view->planeX * spriteY);
-        if (transformY <= 0) continue; // behind camera
+        if (transformY < 1e-2) continue; // behind camera or too close (int overflow below)
 
         // transformY is depth, transformX is horizontal offset
         int sprite_screen_x = (int)((SCREEN_WIDTH / 2) * (1 + transformX / transformY));
 
-        int sprite_height = (int)(SCREEN_HEIGHT / transformY);
-        if (sprite_height > SCREEN_HEIGHT) sprite_height = SCREEN_HEIGHT;
-        int sprite_width = sprite_height / 2;
+        // Full wall height at this depth; the sprite stands on the floor line
+        double line_height = SCREEN_HEIGHT / transformY;
+        int sprite_height = (int)(line_height * sprite->scale);
+        int sprite_width  = (int)((double)sprite_height * tex->width / tex->height);
+        if (sprite_height < 1 || sprite_width < 1) continue;
 
-        int draw_start_y = (SCREEN_HEIGHT - sprite_height) / 2;
-        int draw_end_y   = (SCREEN_HEIGHT + sprite_height) / 2;
-        int draw_start_x = sprite_screen_x - sprite_width / 2;
-        int draw_end_x   = sprite_screen_x + sprite_width / 2;
-        if (draw_start_x < 0) draw_start_x = 0;
-        if (draw_end_x > SCREEN_WIDTH) draw_end_x = SCREEN_WIDTH;
+        int bottom = (int)((SCREEN_HEIGHT + line_height) / 2);
+        int top    = bottom - sprite_height;
+        int left   = sprite_screen_x - sprite_width / 2;
+
+        // Only the drawn range is clipped, so the texture is cropped, not squeezed
+        int draw_start_y = top < 0 ? 0 : top;
+        int draw_end_y   = bottom > SCREEN_HEIGHT ? SCREEN_HEIGHT : bottom;
+        int draw_start_x = left < 0 ? 0 : left;
+        int draw_end_x   = left + sprite_width > SCREEN_WIDTH ? SCREEN_WIDTH : left + sprite_width;
+
+        Uint32 mul = (Uint32)(compute_shade(transformY, 1.0f) * 256.0f);
+        double step = (double)tex->height / sprite_height;
+        double tex_pos_start = (draw_start_y - top) * step;
 
         for (int col = draw_start_x; col < draw_end_x; col++) {
             if (transformY >= z_buffer[col]) continue; // wall is closer
 
+            int texX = (int)((double)(col - left) * tex->width / sprite_width);
+            const Uint32* src = &tex->pixels[texX];
+            double tex_pos = tex_pos_start;
             Uint32* dst = &framebuffer[draw_start_y * SCREEN_WIDTH + col];
+
             for (int y = draw_start_y; y < draw_end_y; y++) {
-                *dst = 0xFFFF0000; // red, ARGB
+                int texY = (int)tex_pos;
+                if (texY >= tex->height) texY = tex->height - 1;
+                tex_pos += step;
+
+                Uint32 color = src[texY * tex->width];
+                if (color >> 24) *dst = shade_mul(color, mul); // alpha 0 = transparent
                 dst += SCREEN_WIDTH;
             }
         }
