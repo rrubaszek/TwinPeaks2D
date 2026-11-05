@@ -41,43 +41,57 @@ Kryterium: tekstura nie „pływa” przy podchodzeniu do ściany.
 
 ## B. Wydajność obliczeniowa
 
-### B0 `?` Pomiar bazowy (warunek wstępny dla B1–B4)
+### B0 `DONE` (budżet B0.5 — do decyzji) Pomiar bazowy (warunek wstępny dla B1–B4)
 Instrumentacja czasu klatki i sekcji (`/perf-measure`), zapisany wynik bazowy.
 Kryterium: tabela czasów w `docs/perf-log.md` dla aktualnego commita.
 
-### B1 `?` Koszt podłogi i sufitu
+### B1 `WIP` (B1.1–B1.3 DONE: −64% czasu; B1.4 overdraw — plan gotowy, do decyzji) Koszt podłogi i sufitu
 `render_floor_ceiling` przetwarza każdy piksel ekranu (480 000/klatkę) z kilkoma
 wywołaniami funkcji, operacjami zmiennoprzecinkowymi i modulo na piksel; część tych
 pikseli jest potem nadpisywana przez ściany (overdraw).
 Kryterium: ustalony procentowy zysk względem B0 (do określenia przez autora).
 
-### B2 `?` Koszt rysowania ścian
+### B2 `WIP` (B2.1–B2.2 DONE: −29% czasu; dalej: koszt zapisu kolumnami — do pomiaru) Koszt rysowania ścian
 Pętla wewnętrzna `raycaster` pisze kolumnami (dostęp do pamięci co 3200 B) przez
 `put_pixel` z kontrolą granic i cieniowaniem per piksel.
 Kryterium: j.w.
 
-### B3 `?` Pętla gry niezależna od FPS
+### B3 `DONE` Pętla gry niezależna od FPS
 `SDL_Delay(16)` + czas pracy ≠ stałe 60 FPS; ruch kamery liczony „na klatkę”,
 więc prędkość gracza zależy od wydajności.
 Kryterium: prędkość ruchu identyczna przy sztucznym spowolnieniu klatki.
 
-### B4 `?` Funkcje gorącej ścieżki a inlining
+### B4 `DONE` (pomiar: -march=native/-flto w szumie; put_pixel/apply_shade poza ścieżką gorącą) Funkcje gorącej ścieżki a inlining
 `put_pixel` i `apply_shade` są w innych jednostkach kompilacji niż pętle, które je
 wołają. Do zbadania: czy kompilator je inlinuje, i co daje `-flto` vs przeniesienie.
 Kryterium: decyzja poparta pomiarem.
 
 ## C. Oszczędność pamięci
 
-### C1 `?` Bilans pamięci przy przejściach między mapami
+### C1 `DONE` (122 przejścia: heap stały, ASan/LSan czyste — `docs/perf-log.md`) Bilans pamięci przy przejściach między mapami
 Kryterium: zużycie pamięci stabilne po 20 przejściach (Valgrind/ASan bez wycieków
 z kodu projektu).
 
-### C2 `?` Alokacje w każdej klatce
+### C2 `?` (przesunięte za D1 — `render_sprites` jest obecnie wyłączone) Alokacje w każdej klatce
 `render_sprites` alokuje tablicę odległości (`malloc`) i VLA w każdej klatce.
 Kryterium: zero alokacji na stercie w pętli klatki.
 
 ## D. Funkcjonalność (z TODO w kodzie)
 - D1 `?` Sprite'y renderowane do framebuffera (obecnie wyłączone, rysowały przez SDL_Renderer)
+- D5 `?` Las z animacją wiatru (wymaga D1)
+  - D5.1 Przezroczystość sprite'ów (alfa z PNG zamiast czarnego tła BMP) i tekstury drzew.
+  - D5.2 Wiele drzew: odrzucanie poza polem widzenia i za odległością, rysowanie od przodu do tyłu
+    z buforem pokrycia (bez overdraw — ta sama idea co odłożone B1.4).
+  - D5.3 Czas w rendererze (suma `dt`) + wiatr: przesunięcie `texX` w poziomie, rosnące ku
+    koronie (`amplitude * wind(t, drzewo) * (1 - v)^2`), faza per drzewo z pozycji, podmuchy
+    jako suma 2–3 sinusów wędrująca przez mapę.
+  - D5.4 Pomiar (profiler + callgrind, np. 200 drzew) względem budżetu klatki.
+  - D5.5 Edytor: pędzel „rozsyp drzewa” (gęstość, losowa skala); opcjonalnie parametry
+    wiatru per mapa.
+  - Opcjonalnie: 2–4 klatki animacji liści, opadające liście, mocniejsza mgła w oddali,
+    `forest.jpeg` jako ściana „skraju lasu” za sprite'ami.
+  Kryterium: scena z ≥ 200 drzewami kołysze się płynnie (drzewa niezsynchronizowane, widoczne
+  podmuchy), czas klatki w budżecie B0.5.
 - D2 `?` Tekstury per kafelek (`texture_id` w `Tile` jest wczytywane, ale nieużywane)
 - D3 `?` Zależne stałe w `constants.h` (TODO autora)
 - D4 `?` Drzwi, przedmioty interaktywne, NPC (typy już zdefiniowane w `sprite.h`)
@@ -86,8 +100,29 @@ Kryterium: zero alokacji na stercie w pętli klatki.
 - E1 `?` Akcja „użyj/zbadaj” na obiekt w centrum ekranu (wymaga D1)
 - E2 `?` Ekwipunek
 - E3 `?` Stan świata trwały między mapami (dziś `handle_exit` ładuje mapę od zera)
-- E4 `?` Edytor map (format `maps/*.txt`)
+- E4 `WIP` Edytor map (format `maps/*.txt`) — v1 w `editor/` (PySide6): kafelki + sprite'y, walidacja; v2: undo, tekstury per kafelek, start gracza
 - E5 `?` Wyświetlanie tekstu / HUD (zależne od decyzji w Wizji)
+
+## F. Kierunek wizualny (referencja: demo BLOK — retro PS1, wnętrza lat 90.)
+Cel przykładowy: wnętrze Double R Diner (szachownica na podłodze, boazeria, lada ze
+stołkami, boksy przy oknach, gablota z ciastami, ciepłe lampy).
+- F1 `?` Post-process „retro”: renderowanie w niższej rozdzielczości wewnętrznej +
+  powiększenie bez wygładzania, redukcja liczby kolorów na kanał, dithering uporządkowany
+  (Bayer). Parametry regulowane stałymi (jak w BLOK: pikselizacja, precyzja koloru).
+  Kryterium: efekt włączany/wyłączany klawiszem, czas klatki w budżecie B0.5.
+- F2 `?` Podłoga i sufit per kafelek (dziś jedna tekstura na mapę: `floor_tex_id`,
+  `ceiling_tex_id`) — wymaga zmiany formatu mapy i edytora (E4).
+  Kryterium: mapa z dwoma rodzajami podłogi (np. szachownica w dinerze, deski w kuchni).
+- F3 `?` Oświetlenie: poziom światła per kafelek + mgła w kolor (nie tylko przyciemnianie).
+  Kryterium: ciemny kąt i jasna strefa pod lampą na jednej mapie.
+- F4 `?` Rekwizyty jako sprite'y (lada, stołki, boksy, gablota, szafa grająca) — oparte na
+  D1 + D5.1; opcjonalnie sprite'y 8-kierunkowe dla dużych mebli.
+  Kryterium: scena dinera z ≥ 10 rekwizytami, poprawne zasłanianie przez ściany.
+- F5 `?` Ściany o różnej wysokości (pole `Tile.height` już istnieje) — np. lada
+  „do pasa”, nad którą widać dalszą część sali. Duża zmiana w `cast_ray`/`raycaster`
+  (promień nie kończy się na pierwszej ścianie).
+  Kryterium: lada widoczna jako niska ściana, za nią widoczne tło.
+- F6 `?` Mapa „Double R Diner” jako test całości.
 
 ---
 
@@ -95,7 +130,8 @@ Kryterium: zero alokacji na stercie w pętli klatki.
 Rytm: bloki tematyczne — kończymy blok, zanim zaczniemy następny.
 1. **A — fundament:** A1 (realny zapis poza tablicą po ~5 przejściach) → A2 → A3
 2. **B0 — pomiar bazowy** + ustalenie budżetu wydajności w Wizji
-3. **B + C — wydajność i pamięć:** B3 → B1 → B2 → B4 → C1 → C2
+3. **B + C — wydajność i pamięć:** B3 → B1 → B2 → B4 → C1 (C2 razem z D1)
    (B3 najpierw: ruch zależny od czasu, zanim optymalizacje zmienią czas klatki)
-4. **D — silnik pod grę:** D3 → D2 → D1 → D4
+4. **D — silnik pod grę:** D3 → D2 → D1 (+ C2) → D5 → D4
 5. **E — systemy gry:** E1 → E2 → E3 → E4 (E5 po decyzji o tekście)
+6. **F — kierunek wizualny:** F1 (niezależne, można wcześniej) → F2 → F3 → F4 (po D1) → F5 → F6

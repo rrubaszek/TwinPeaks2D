@@ -30,6 +30,14 @@ Uint32 apply_shade(Uint32 color, float shade) {
     return (a << 24) | (r << 16) | (g << 8) | b;
 }
 
+// Integer shade: mul in [0, 256], 256 = full brightness.
+// R and B are scaled together in one multiply (8 free bits between them).
+static inline Uint32 shade_mul(Uint32 color, Uint32 mul) {
+    Uint32 rb = ((color & 0x00FF00FFu) * mul >> 8) & 0x00FF00FFu;
+    Uint32 g  = ((color & 0x0000FF00u) * mul >> 8) & 0x0000FF00u;
+    return (color & 0xFF000000u) | rb | g;
+}
+
 
 double* calculate_sprite_distances(Camera* camera, const Grid* g) {
     double* distances = malloc(g->sprite_count * sizeof(double));
@@ -186,11 +194,15 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
         if (draw_end > SCREEN_HEIGHT) draw_end = SCREEN_HEIGHT;
 
         float shade = compute_shade(dist, hit.side == 0 ? 0.9f : 0.7f);
+        Uint32 mul = (Uint32)(shade * 256.0f);   // shade in [0, 1] -> [0, 256]
 
         // Texture rows per screen pixel; start offset skips the off-screen part
         int tex_h = wall_texture->height;
         double step = (double)tex_h / line_height;
         double tex_pos = (draw_start - wall_top) * step;
+
+        // Column write: one pixel per row, stride = SCREEN_WIDTH
+        Uint32* dst = &framebuffer[draw_start * SCREEN_WIDTH + i];
 
         for (int y = draw_start; y < draw_end; y++) {
             int texY = (int)tex_pos;
@@ -198,7 +210,8 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
             tex_pos += step;
 
             Uint32 color = wall_texture->pixels[texY * wall_texture->width + texX];
-            put_pixel(i, y, apply_shade(color, shade));
+            *dst = shade_mul(color, mul);
+            dst += SCREEN_WIDTH;
         }
     }
 }
@@ -280,6 +293,7 @@ void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
         double rowDistance = (SCREEN_HEIGHT / 2.0) / p;
 
         float shade = compute_shade(rowDistance, is_floor ? 1.0f : 0.85f);
+        Uint32 mul = (Uint32)(shade * 256.0f);   // shade in [0, 1] -> [0, 256]
 
         double floorStepX = rowDistance * (rayDirX1 - rayDirX0) / SCREEN_WIDTH;
         double floorStepY = rowDistance * (rayDirY1 - rayDirY0) / SCREEN_WIDTH;
@@ -288,31 +302,31 @@ void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
         double floorY = view->posY + rowDistance * rayDirY0;
 
         Texture* tex = is_floor ? floor_tex : ceiling_tex;
+        Uint32* row = &framebuffer[y * SCREEN_WIDTH];   // y in [0, SCREEN_HEIGHT), no bounds check needed
+
+        if (tex == NULL) {
+            for (int x = 0; x < SCREEN_WIDTH; x++)
+                row[x] = shade_mul(0xFF333333, mul);
+            continue;
+        }
+
+        // Texture coords in 16.16 fixed point, wrapped to [0, size) each step
+        const int32_t W = tex->width  << 16;
+        const int32_t H = tex->height << 16;
+
+        int32_t u  = (int32_t)((floorX - floor(floorX)) * W);
+        int32_t v  = (int32_t)((floorY - floor(floorY)) * H);
+        int32_t du = (int32_t)(floorStepX * W);   // |step| < 1 tile, one wrap suffices
+        int32_t dv = (int32_t)(floorStepY * H);
+        if (u >= W) u -= W;                       // guard against rounding to exactly 1.0
+        if (v >= H) v -= H;
 
         for (int x = 0; x < SCREEN_WIDTH; x++) {
+            Uint32 color = tex->pixels[(v >> 16) * tex->width + (u >> 16)];
+            row[x] = shade_mul(color, mul);
 
-            if (tex == NULL) {
-                put_pixel(x, y, apply_shade(0xFF333333, shade));
-                floorX += floorStepX;
-                floorY += floorStepY;
-                continue;
-            }
-
-            int cellX = (int)floor(floorX);
-            int cellY = (int)floor(floorY);
-
-            double fracX = floorX - cellX;
-            double fracY = floorY - cellY;
-
-            int texX = (int)(fracX * tex->width)  % tex->width;
-            int texY = (int)(fracY * tex->height) % tex->height;
-
-            Uint32 color = tex->pixels[texY * tex->width + texX];
-
-            put_pixel(x, y, apply_shade(color, shade));
-
-            floorX += floorStepX;
-            floorY += floorStepY;
+            u += du; if (u >= W) u -= W; else if (u < 0) u += W;
+            v += dv; if (v >= H) v -= H; else if (v < 0) v += H;
         }
     }
 }

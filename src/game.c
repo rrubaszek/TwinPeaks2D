@@ -202,7 +202,7 @@ bool sdl_initialize(Game* game) {
         fprintf(stderr, "Failed to allocate texture manager\n");
         return true;
     }
-    game->grid = read_map_from_file("maps/map.txt", game->texman);
+    game->grid = read_map_from_file("maps/map3.txt", game->texman);
     if (!game->grid) {
         // read_map_from_file already printed the reason
         fprintf(stderr, "Failed to create game grid\n");
