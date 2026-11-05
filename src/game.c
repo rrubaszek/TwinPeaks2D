@@ -113,7 +113,10 @@ int main(void) {
         prof_begin(PROF_WALLS);
         raycaster(&view, game.texman, game.grid);
         prof_end(PROF_WALLS);
-        // render_sprites(&cam, game.renderer, game.grid);
+
+        prof_begin(PROF_SPRITES);
+        render_sprites(&view, game.texman, game.grid);
+        prof_end(PROF_SPRITES);
 
         // Upload framebuffer
         prof_begin(PROF_PRESENT);
@@ -202,7 +205,7 @@ bool sdl_initialize(Game* game) {
         fprintf(stderr, "Failed to allocate texture manager\n");
         return true;
     }
-    game->grid = read_map_from_file("maps/map3.txt", game->texman);
+    game->grid = read_map_from_file("maps/map.txt", game->texman);
     if (!game->grid) {
         // read_map_from_file already printed the reason
         fprintf(stderr, "Failed to create game grid\n");

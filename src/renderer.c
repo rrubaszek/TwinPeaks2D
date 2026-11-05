@@ -39,17 +39,6 @@ static inline Uint32 shade_mul(Uint32 color, Uint32 mul) {
 }
 
 
-double* calculate_sprite_distances(Camera* camera, const Grid* g) {
-    double* distances = malloc(g->sprite_count * sizeof(double));
-    double camTileX = camera->x / g->tile_size;
-    double camTileY = camera->y / g->tile_size;
-    for (int i = 0; i < g->sprite_count; i++) {
-        double dx = g->sprites[i].x - camTileX;
-        double dy = g->sprites[i].y - camTileY;
-        distances[i] = dx*dx + dy*dy;
-    }
-    return distances;
-}
 
 void draw_camera(Camera* camera, SDL_Renderer* renderer) {
     int screen_x = (int)camera->x;
@@ -217,61 +206,57 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
 }
 
 // TODO: Implement specific textures for sprites
-void render_sprites(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
-    double* distances = calculate_sprite_distances(camera, g);
+// Draws sprites into the framebuffer, far to near, hidden behind walls via z_buffer.
+// Solid colour for now; textures come in a later stage.
+void render_sprites(CameraView* view, TextureManager* tm, const Grid* g) {
+    (void)tm; // used once sprites are textured
+    if (g->sprite_count == 0) return; // zero-length VLA is UB
 
     SpriteOrder sprite_order[g->sprite_count];
     for (int i = 0; i < g->sprite_count; i++) {
+        double dx = g->sprites[i].x - view->posX;
+        double dy = g->sprites[i].y - view->posY;
         sprite_order[i].index = i;
-        sprite_order[i].distance = distances[i];
+        sprite_order[i].distance = dx * dx + dy * dy; // squared is enough for sorting
     }
+    qsort(sprite_order, g->sprite_count, sizeof(SpriteOrder), comp); // farthest first
 
-    qsort(sprite_order, g->sprite_count, sizeof(SpriteOrder), comp); // Sort sprites by distance from camera (farthest to closest)
+    // Inverse camera matrix - the same for every sprite
+    double invDet = 1.0 / (view->planeX * view->dirY - view->dirX * view->planeY);
 
-    double camTileX = camera->x / g->tile_size;
-    double camTileY = camera->y / g->tile_size;
-    for(int i = 0; i < g->sprite_count; i++) {
-        Sprite* sprite = &g->sprites[sprite_order[i].index];
+    for (int i = 0; i < g->sprite_count; i++) {
+        const Sprite* sprite = &g->sprites[sprite_order[i].index];
+        double spriteX = sprite->x - view->posX;
+        double spriteY = sprite->y - view->posY;
 
-        double spriteX = sprite->x - camTileX;
-        double spriteY = sprite->y - camTileY;
-
-        double dirX   = cos(camera->angle);
-        double dirY   = sin(camera->angle);
-        double planeX = -dirY * tan(FOV / 2);
-        double planeY =  dirX * tan(FOV / 2);
-
-        // inverse camera matrix
-        double invDet = 1.0 / (planeX * dirY - dirX * planeY);
-
-        double transformX = invDet * ( dirY * spriteX - dirX * spriteY);
-        double transformY = invDet * (-planeY * spriteX + planeX * spriteY);
-
-        if (transformY <= 0) continue;  // behind camera, skip
+        double transformX = invDet * ( view->dirY * spriteX - view->dirX * spriteY);
+        double transformY = invDet * (-view->planeY * spriteX + view->planeX * spriteY);
+        if (transformY <= 0) continue; // behind camera
 
         // transformY is depth, transformX is horizontal offset
         int sprite_screen_x = (int)((SCREEN_WIDTH / 2) * (1 + transformX / transformY));
 
         int sprite_height = (int)(SCREEN_HEIGHT / transformY);
         if (sprite_height > SCREEN_HEIGHT) sprite_height = SCREEN_HEIGHT;
-        int sprite_width = sprite_height / 2; // Assuming square sprites for now
+        int sprite_width = sprite_height / 2;
 
         int draw_start_y = (SCREEN_HEIGHT - sprite_height) / 2;
-        int draw_end_y = (SCREEN_HEIGHT + sprite_height) / 2;   
+        int draw_end_y   = (SCREEN_HEIGHT + sprite_height) / 2;
         int draw_start_x = sprite_screen_x - sprite_width / 2;
-        int draw_end_x = sprite_screen_x + sprite_width / 2;
+        int draw_end_x   = sprite_screen_x + sprite_width / 2;
+        if (draw_start_x < 0) draw_start_x = 0;
+        if (draw_end_x > SCREEN_WIDTH) draw_end_x = SCREEN_WIDTH;
 
         for (int col = draw_start_x; col < draw_end_x; col++) {
-            if (col < 0 || col >= SCREEN_WIDTH) continue;
+            if (transformY >= z_buffer[col]) continue; // wall is closer
 
-            if (transformY >= z_buffer[col]) continue;
-
-            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Red color for sprites
-            SDL_RenderDrawLine(renderer, col, draw_start_y, col, draw_end_y);
+            Uint32* dst = &framebuffer[draw_start_y * SCREEN_WIDTH + col];
+            for (int y = draw_start_y; y < draw_end_y; y++) {
+                *dst = 0xFFFF0000; // red, ARGB
+                dst += SCREEN_WIDTH;
+            }
         }
     }
-
-    free(distances);
 }
 
 // TODO: Implement specific textures via texture manager

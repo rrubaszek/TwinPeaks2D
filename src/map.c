@@ -46,6 +46,27 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
         goto fail;
     }
 
+    // Read map texture table: count, then file names; sprites refer to it by index
+    int tex_count;
+    if (fscanf(fptr, "%d", &tex_count) != 1 || tex_count < 0 || tex_count > MAX_TEXTURES) {
+        fprintf(stderr, "%s: invalid texture table size\n", filename);
+        goto fail;
+    }
+    int tex_ids[MAX_TEXTURES];
+    for (int i = 0; i < tex_count; i++) {
+        char name[64], path[128];
+        if (fscanf(fptr, "%63s", name) != 1) {
+            fprintf(stderr, "%s: missing texture name %d\n", filename, i);
+            goto fail;
+        }
+        snprintf(path, sizeof(path), "%s%s", TEXTURE_PATH, name);
+        tex_ids[i] = texman_load(tm, path);
+        if (tex_ids[i] < 0) {
+            fprintf(stderr, "%s: failed to load texture %s\n", filename, name);
+            goto fail;
+        }
+    }
+
     // Read map itself
     g->map = calloc(g->h, sizeof(Tile*));
     if (!g->map) {
@@ -113,6 +134,12 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
             fprintf(stderr, "%s: invalid sprite %d\n", filename, i);
             goto fail;
         }
+        int t = g->sprites[i].texture_id;
+        if (t < 0 || t >= tex_count) {
+            fprintf(stderr, "%s: sprite %d: texture index %d not in table\n", filename, i, t);
+            goto fail;
+        }
+        g->sprites[i].texture_id = tex_ids[t];
         g->sprites[i].type = (SpriteType)stype;
         g->sprites[i].visible = true;
         g->sprites[i].state = NULL;

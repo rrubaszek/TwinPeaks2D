@@ -3,10 +3,11 @@
 Layout:
     w h tile_size
     wall floor ceiling                 texture file names in maps/textures/
+    count name...                      texture table; sprite texture_id = index into it
     type:texture_id:height  x w, h rows
     exit0 exit1 exit2 exit3            map path or NULL
     sprite_count
-    x y type texture_id scale collision_r   one line per sprite
+    x y type texture_id scale collision_r   one line per sprite, x y in tile units
 """
 
 from __future__ import annotations
@@ -22,6 +23,7 @@ TEXTURE_PATH = "maps/textures/"   # constants.h
 MAX_TEXTURE_NAME = 63             # fscanf("%63s")
 MAX_TEXTURE_PATH = 127            # char path[128] = TEXTURE_PATH + name
 MAX_EXIT_NAME = 15                # char exits[4][16]
+MAX_TEXTURES = 16                 # constants.h, size of the whole texture cache
 
 
 class MapFormatError(ValueError):
@@ -74,6 +76,11 @@ def parse_map(text: str) -> MapData:
 
     wall, floor, ceiling = t.next("wall texture"), t.next("floor texture"), t.next("ceiling texture")
 
+    tex_count = t.int("texture table size")
+    if not 0 <= tex_count <= MAX_TEXTURES:
+        raise MapFormatError(f"invalid texture table size {tex_count}")
+    textures = [t.next(f"texture {i}") for i in range(tex_count)]
+
     tiles: list[list[Tile]] = []
     for y in range(height):
         row = []
@@ -106,7 +113,8 @@ def parse_map(text: str) -> MapData:
             raise MapFormatError(f"{what}: unknown sprite type {stype}") from None
         sprites.append(Sprite(sx, sy, stype, t.int(what), t.float(what), t.float(what)))
 
-    return MapData(width, height, tile_size, wall, floor, ceiling, tiles, exits, sprites)
+    return MapData(width, height, tile_size, wall, floor, ceiling, tiles, exits, sprites,
+                   textures)
 
 
 def _num(v: float) -> str:
@@ -117,7 +125,8 @@ def _num(v: float) -> str:
 
 def format_map(m: MapData) -> str:
     lines = [f"{m.width} {m.height} {m.tile_size}",
-             f"{m.wall_texture} {m.floor_texture} {m.ceiling_texture}"]
+             f"{m.wall_texture} {m.floor_texture} {m.ceiling_texture}",
+             " ".join([str(len(m.textures))] + m.textures)]
     for row in m.tiles:
         lines.append(" ".join(f"{int(t.type)}:{t.texture_id}:{_num(t.height)}" for t in row))
     lines.append(" ".join(m.exits))
@@ -156,8 +165,11 @@ def validate(m: MapData, textures_dir: Path | None = None) -> list[Issue]:
     if m.width <= 0 or m.height <= 0 or m.tile_size <= 0:
         issues.append(Issue(True, "width, height and tile size must be > 0"))
 
-    for what, name in (("wall texture", m.wall_texture), ("floor texture", m.floor_texture),
-                       ("ceiling texture", m.ceiling_texture)):
+    if len(m.textures) > MAX_TEXTURES:
+        issues.append(Issue(True, f"texture table has more than {MAX_TEXTURES} entries"))
+    table = [(f"texture {i}", name) for i, name in enumerate(m.textures)]
+    for what, name in [("wall texture", m.wall_texture), ("floor texture", m.floor_texture),
+                       ("ceiling texture", m.ceiling_texture)] + table:
         found = _check_name(name, what, MAX_TEXTURE_NAME)
         if not found and len(TEXTURE_PATH) + len(name) > MAX_TEXTURE_PATH:
             found = [Issue(True, f"{what} path is longer than {MAX_TEXTURE_PATH} characters")]
@@ -175,6 +187,8 @@ def validate(m: MapData, textures_dir: Path | None = None) -> list[Issue]:
             issues.append(Issue(True, f"sprite {i} at ({s.x}, {s.y}) is outside the map"))
         elif m.in_bounds(int(s.x), int(s.y)) and m.tile(int(s.x), int(s.y)).type in SOLID_TILES:
             issues.append(Issue(False, f"sprite {i} at ({s.x}, {s.y}) is inside a wall"))
+        if not 0 <= s.texture_id < len(m.textures):
+            issues.append(Issue(True, f"sprite {i}: texture index {s.texture_id} not in texture table"))
         if s.scale <= 0:
             issues.append(Issue(False, f"sprite {i} has scale <= 0"))
         if s.collision_r < 0:

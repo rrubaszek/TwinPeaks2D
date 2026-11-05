@@ -70,6 +70,7 @@ class MapData:
     tiles: list[list[Tile]]  # tiles[y][x]
     exits: list[str] = field(default_factory=lambda: [NO_EXIT] * EXIT_COUNT)
     sprites: list[Sprite] = field(default_factory=list)
+    textures: list[str] = field(default_factory=list)  # sprites refer to it by index
 
     @classmethod
     def new(cls, width: int, height: int, tile_size: int = 100,

@@ -23,9 +23,8 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g);
 Uint32 apply_shade(Uint32 color, float shade);
 float compute_shade(double distance, float side_factor);
 RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, const Grid* g);
-void render_sprites(Camera* camera, SDL_Renderer* renderer, const Grid* g);
+void render_sprites(CameraView* view, TextureManager* tm, const Grid* g);
 void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g);
-double* calculate_sprite_distances(Camera* camera, const Grid* g);
 int comp (const void * elem1, const void * elem2);
 
 #endif // RENDERER_H
