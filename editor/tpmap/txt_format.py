@@ -4,10 +4,11 @@ Layout:
     w h tile_size
     wall floor ceiling                 texture file names in maps/textures/
     count name...                      texture table; sprite texture_id = index into it
-    type:texture_id:height  x w, h rows
+    type:texture_id:height  x w, h rows  tile texture_id: 0 = wall texture, k = table entry k-1
     exit0 exit1 exit2 exit3            map path or NULL
     sprite_count
-    x y type texture_id scale collision_r   one line per sprite, x y in tile units
+    x y type texture_id scale collision_r [z]   one line per sprite, x y in tile units,
+                                       optional z = base height (written only when != 0)
 """
 
 from __future__ import annotations
@@ -43,13 +44,19 @@ class _Tokens:
     """Whitespace tokenizer, behaves like successive fscanf calls."""
 
     def __init__(self, text: str):
-        self._tokens = text.split()
+        # (token, line number): lets optional trailing fields stay on their own line
+        self._tokens = [(tok, n) for n, line in enumerate(text.splitlines()) for tok in line.split()]
         self._pos = 0
+
+    def has_on_line(self) -> bool:
+        """True if another token follows on the same line as the last one read."""
+        return (0 < self._pos < len(self._tokens)
+                and self._tokens[self._pos][1] == self._tokens[self._pos - 1][1])
 
     def next(self, what: str) -> str:
         if self._pos >= len(self._tokens):
             raise MapFormatError(f"unexpected end of file, expected {what}")
-        tok = self._tokens[self._pos]
+        tok = self._tokens[self._pos][0]
         self._pos += 1
         return tok
 
@@ -111,7 +118,10 @@ def parse_map(text: str) -> MapData:
             stype = SpriteType(stype)
         except ValueError:
             raise MapFormatError(f"{what}: unknown sprite type {stype}") from None
-        sprites.append(Sprite(sx, sy, stype, t.int(what), t.float(what), t.float(what)))
+        s = Sprite(sx, sy, stype, t.int(what), t.float(what), t.float(what))
+        if t.has_on_line():                     # optional 7th field, like fgets in map.c
+            s.z = t.float(what)
+        sprites.append(s)
 
     return MapData(width, height, tile_size, wall, floor, ceiling, tiles, exits, sprites,
                    textures)
@@ -132,8 +142,9 @@ def format_map(m: MapData) -> str:
     lines.append(" ".join(m.exits))
     lines.append(str(len(m.sprites)))
     for s in m.sprites:
-        lines.append(f"{_num(s.x)} {_num(s.y)} {int(s.type)} {s.texture_id} "
-                     f"{_num(s.scale)} {_num(s.collision_r)}")
+        line = (f"{_num(s.x)} {_num(s.y)} {int(s.type)} {s.texture_id} "
+                f"{_num(s.scale)} {_num(s.collision_r)}")
+        lines.append(line + (f" {_num(s.z)}" if s.z != 0 else ""))
     return "\n".join(lines) + "\n"
 
 
@@ -186,13 +197,23 @@ def validate(m: MapData, textures_dir: Path | None = None) -> list[Issue]:
         if not (0 <= s.x <= m.width and 0 <= s.y <= m.height):
             issues.append(Issue(True, f"sprite {i} at ({s.x}, {s.y}) is outside the map"))
         elif m.in_bounds(int(s.x), int(s.y)) and m.tile(int(s.x), int(s.y)).type in SOLID_TILES:
-            issues.append(Issue(False, f"sprite {i} at ({s.x}, {s.y}) is inside a wall"))
+            t = m.tile(int(s.x), int(s.y))
+            if not (t.type == TileType.LOWWALL and s.z >= t.height):   # standing on a counter is fine
+                issues.append(Issue(False, f"sprite {i} at ({s.x}, {s.y}) is inside a wall"))
+        if s.z < 0:
+            issues.append(Issue(False, f"sprite {i} has negative height z"))
         if not 0 <= s.texture_id < len(m.textures):
             issues.append(Issue(True, f"sprite {i}: texture index {s.texture_id} not in texture table"))
         if s.scale <= 0:
             issues.append(Issue(False, f"sprite {i} has scale <= 0"))
         if s.collision_r < 0:
             issues.append(Issue(False, f"sprite {i} has negative collision radius"))
+
+    for y, row in enumerate(m.tiles):
+        for x, t in enumerate(row):
+            if not 0 <= t.texture_id <= len(m.textures):
+                issues.append(Issue(True, f"tile at row {y}, col {x}: texture {t.texture_id} "
+                                          "not in texture table"))
 
     has_exit_tile = any(t.type == TileType.EXIT for row in m.tiles for t in row)
     has_exit_target = any(e != NO_EXIT for e in m.exits)

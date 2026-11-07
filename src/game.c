@@ -116,6 +116,9 @@ int main(void) {
         render_floor_ceiling(&view, game.texman, game.grid);
         prof_end(PROF_FLOOR);
 
+        // Low walls after the floor: the floor pass only skips full-wall spans
+        render_low_walls(&view, game.texman, game.grid);
+
         prof_begin(PROF_SPRITES);
         render_sprites(&view, game.texman, game.grid);
         prof_end(PROF_SPRITES);

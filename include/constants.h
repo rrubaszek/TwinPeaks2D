@@ -24,4 +24,6 @@
 
 #define MAX_TEXTURES 16
 
+#define MAX_LOW_SEGS 8   // low walls remembered per screen column (farther ones are skipped)
+
 #endif // CONSTANTS_H

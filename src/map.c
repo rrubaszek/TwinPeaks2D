@@ -86,9 +86,14 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
                 fprintf(stderr, "%s: invalid tile at row %d, col %d\n", filename, i, j);
                 goto fail;
             }
+            // Tile texture: 0 = map default wall texture, k >= 1 = texture table entry k-1
+            if (tex_id < 0 || tex_id > tex_count) {
+                fprintf(stderr, "%s: tile at row %d, col %d: texture %d not in table\n",
+                        filename, i, j, tex_id);
+                goto fail;
+            }
             g->map[i][j].type = (TileType)type;
-            // TODO: Where to load specific textures like window, door, painting ... ?
-            g->map[i][j].texture_id = tex_id; // Placeholder for specific textures - currently not loaded
+            g->map[i][j].texture_id = tex_id == 0 ? g->wall_tex_id : tex_ids[tex_id - 1];
             g->map[i][j].height = height;
         }
     }
@@ -140,6 +145,11 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
             fprintf(stderr, "%s: sprite %d: texture index %d not in table\n", filename, i, t);
             goto fail;
         }
+        // Optional 7th field: base height z (old maps have 6 fields -> z = 0)
+        char rest[64];
+        float z = 0.0f;
+        if (fgets(rest, sizeof rest, fptr) && sscanf(rest, "%f", &z) != 1) z = 0.0f;
+        g->sprites[i].z = z;
         g->sprites[i].texture_id = tex_ids[t];
         g->sprites[i].type = (SpriteType)stype;
         g->sprites[i].visible = true;

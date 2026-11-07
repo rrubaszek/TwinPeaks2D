@@ -24,17 +24,20 @@ class SpriteType(IntEnum):
     NPC = 3
 
 
-# Values the existing maps use for each tile type: (texture_id, height)
+# Default (texture_id, height) per tile type; texture_id 0 = map default wall texture
 TILE_DEFAULTS: dict[TileType, tuple[int, float]] = {
     TileType.EMPTY: (0, 0.0),
-    TileType.WALL: (1, 1.0),
+    TileType.WALL: (0, 1.0),
     TileType.EXIT: (0, 1.0),
-    TileType.DOOR: (1, 1.0),
-    TileType.LOWWALL: (1, 0.5),
+    TileType.DOOR: (0, 1.0),
+    TileType.LOWWALL: (0, 0.5),
 }
 
 # Tiles the game treats as blocking (src/map.c: is_tile_solid)
 SOLID_TILES = {TileType.WALL, TileType.LOWWALL}
+
+# Tiles the game draws as walls; only these keep a texture_id
+TEXTURED_TILES = SOLID_TILES
 
 
 @dataclass
@@ -44,9 +47,10 @@ class Tile:
     height: float = 0.0
 
     @classmethod
-    def of(cls, tile_type: TileType) -> Tile:
-        texture_id, height = TILE_DEFAULTS[tile_type]
-        return cls(tile_type, texture_id, height)
+    def of(cls, tile_type: TileType, texture_id: int = 0) -> Tile:
+        """texture_id: 0 = map wall texture, k = texture table entry k-1 (walls only)."""
+        default_tex, height = TILE_DEFAULTS[tile_type]
+        return cls(tile_type, texture_id if tile_type in TEXTURED_TILES else default_tex, height)
 
 
 @dataclass
@@ -57,6 +61,7 @@ class Sprite:
     texture_id: int = 0
     scale: float = 1.0       # 1.0 = person height
     collision_r: float = 0.0  # 0 = no collision
+    z: float = 0.0           # base height in wall units: 0 = floor, 0.5 = on a 0.5 counter
 
 
 @dataclass
@@ -70,7 +75,7 @@ class MapData:
     tiles: list[list[Tile]]  # tiles[y][x]
     exits: list[str] = field(default_factory=lambda: [NO_EXIT] * EXIT_COUNT)
     sprites: list[Sprite] = field(default_factory=list)
-    textures: list[str] = field(default_factory=list)  # sprites refer to it by index
+    textures: list[str] = field(default_factory=list)  # sprites: index, tiles: index + 1
 
     @classmethod
     def new(cls, width: int, height: int, tile_size: int = 100,
@@ -88,11 +93,17 @@ class MapData:
     def tile(self, x: int, y: int) -> Tile:
         return self.tiles[y][x]
 
-    def set_tile(self, x: int, y: int, tile_type: TileType) -> bool:
-        """Sets tile type with its default texture/height. Returns True if anything changed."""
+    def texture_index(self, name: str) -> int:
+        """Index of `name` in the texture table, appended if missing."""
+        if name not in self.textures:
+            self.textures.append(name)
+        return self.textures.index(name)
+
+    def set_tile(self, x: int, y: int, tile_type: TileType, texture_id: int = 0) -> bool:
+        """Sets tile type with its default height. Returns True if anything changed."""
         if not self.in_bounds(x, y):
             return False
-        new = Tile.of(tile_type)
+        new = Tile.of(tile_type, texture_id)
         if self.tiles[y][x] == new:
             return False
         self.tiles[y][x] = new

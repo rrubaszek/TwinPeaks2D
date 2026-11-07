@@ -104,7 +104,9 @@ Kryterium: zero alokacji na stercie w pętli klatki.
     `forest.jpeg` jako ściana „skraju lasu” za sprite'ami.
   Kryterium: scena z ≥ 200 drzewami kołysze się płynnie (drzewa niezsynchronizowane, widoczne
   podmuchy), czas klatki w budżecie B0.5.
-- D2 `?` Tekstury per kafelek (`texture_id` w `Tile` jest wczytywane, ale nieużywane)
+- D2 `DONE` Tekstury per kafelek — numer tekstury kafelka: 0 = domyślna tekstura ścian mapy,
+  k ≥ 1 = pozycja k−1 tabeli tekstur (mapy zmigrowane z 1 na 0); używają go ściany i niskie
+  ściany; wybór w edytorze (E4). Format: `docs/map-format.md`.
 - D3 `?` Zależne stałe w `constants.h` (TODO autora)
 - D4 `?` Drzwi, przedmioty interaktywne, NPC (typy już zdefiniowane w `sprite.h`)
   - Drzwi: kilka drzwi na jednej ścianie prowadzących do różnych pomieszczeń (np. korytarz
@@ -115,14 +117,19 @@ Kryterium: zero alokacji na stercie w pętli klatki.
   jeden sprite na cały ekran ≈ 2,9 ms (więcej niż ściany + podłoga). Kandydaci: zakresy
   nieprzezroczyste per kolumna tekstury, krok współrzędnych tekstury w stałym przecinku.
   Kryterium: sprite na cały ekran tańszy o ustalony % (pomiar jak S8).
+- D7 `DONE` Sprite'y na wysokości — opcjonalne 7. pole `z` w linii sprite'a (podstawa
+  w jednostkach wysokości ściany, 0 = podłoga); przy równej głębokości niższy sprite rysowany
+  pierwszy (ciasto na stole-sprite'cie). Sprite'y zasłaniane przez bliższe niskie ściany (F5).
 
 ## E. Systemy gry (z wizji)
 - E1 `?` Akcja „użyj/zbadaj” na obiekt w centrum ekranu (wymaga D1)
 - E2 `?` Ekwipunek
 - E3 `?` Stan świata trwały między mapami (dziś `handle_exit` ładuje mapę od zera)
 - E4 `WIP` Edytor map (format `maps/*.txt`) — v1 w `editor/` (PySide6, PR #6): kafelki + sprite'y,
-  walidacja, wybór tekstur z tabeli tekstur mapy; v2: undo, tekstury per kafelek, start gracza,
-  edytor pikseli sprite'ów (na bazie `helpers/generate_sprites.py`)
+  walidacja, wybór tekstur z tabeli tekstur mapy; tekstury kafelków (miniatury na siatce),
+  wysokość `z` sprite'ów + „On tile top” (sprite postawiony na niskiej ścianie dostaje jej wysokość).
+  v2: edytor pikseli sprite'ów (na bazie `helpers/generate_sprites.py`), „On sprite below”
+  (z = wierzch sprite'a pod spodem), undo, start gracza
 - E5 `?` Wyświetlanie tekstu / HUD (zależne od decyzji w Wizji)
 
 ## F. Kierunek wizualny (referencja: demo BLOK — retro PS1, wnętrza lat 90.)
@@ -140,10 +147,11 @@ stołkami, boksy przy oknach, gablota z ciastami, ciepłe lampy).
 - F4 `?` Rekwizyty jako sprite'y (lada, stołki, boksy, gablota, szafa grająca) — oparte na
   D1 + D5.1; opcjonalnie sprite'y 8-kierunkowe dla dużych mebli.
   Kryterium: scena dinera z ≥ 10 rekwizytami, poprawne zasłanianie przez ściany.
-- F5 `?` Ściany o różnej wysokości (pole `Tile.height` już istnieje, ale `cast_ray`/`raycaster`
-  je ignorują — zgłoszone przez autora 2026-11-05) — np. lada
-  „do pasa”, nad którą widać dalszą część sali. Duża zmiana w `cast_ray`/`raycaster`
-  (promień nie kończy się na pierwszej ścianie).
+- F5 `DONE` Ściany o różnej wysokości — kafelek o `height < 1` to niska ściana: promień
+  przechodzi dalej (do `MAX_LOW_SEGS` = 8 na kolumnę), `render_low_walls` rysuje przednią ścianę
+  (cała tekstura ściśnięta do wysokości) i wierzch dla `height < 0.5` (poniżej oczu), od
+  najdalszej do najbliższej; sprite'y za ladą są przycinane. TODO: osobna tekstura wierzchu
+  (np. obrus) — dziś tekstura kafelka, 1 kopia na kafelek.
   Kryterium: lada widoczna jako niska ściana, za nią widoczne tło.
 - F6 `?` Mapa „Double R Diner” jako test całości.
 
@@ -159,5 +167,5 @@ Rytm: bloki tematyczne — kończymy blok, zanim zaczniemy następny.
 5. **E — systemy gry:** E1 → E2 → E3 → E4 (E5 po decyzji o tekście)
 6. **F — kierunek wizualny:** F1 (niezależne, można wcześniej) → F2 → F3 → F4 (po D1) → F5 → F6
 
-**Bieżąca kolejność (ustalona 2026-11-05):** sprite'y + ich koszt (D1 → D6) → generator sprite'ów /
-edytor pikseli w edytorze map (E4 v2) → F → E. A4/A5 — gdy autor je wybierze.
+**Bieżąca kolejność (aktualizacja 2026-11-07):** D2, F5, D7 zrobione → narzędzia sprite'ów
+w edytorze (E4 v2, osobna gałąź) → F → E. D6 (koszt sprite'ów) później; A4/A5 — gdy autor je wybierze.
