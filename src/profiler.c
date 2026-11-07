@@ -8,7 +8,7 @@
 #define PROF_FRAMES 300
 
 static const char* names[PROF_COUNT] = {
-    "clear_framebuffer", "render_floor_ceiling", "raycaster",
+    "clear_framebuffer", "render_floor_ceiling", "raycaster", "render_sprites",
     "upload + present", "frame (no delay)"
 };
 

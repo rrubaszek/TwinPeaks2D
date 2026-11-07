@@ -1,6 +1,7 @@
 # TwinPeaks2D map editor
 
 PySide6 editor for `maps/*.txt`, in the exact format `read_map_from_file` (`src/map.c`) reads.
+Format description: `docs/map-format.md`.
 
 ## Setup and run
 ```
@@ -19,14 +20,22 @@ Tests (offscreen, no window): `.venv/bin/python -m pytest editor/tests`
 | Select / move (`S`) | drag sprites, rubber-band select, Del deletes |
 | View | wheel zoom, middle-drag pan, Ctrl+0 fit |
 
+**Wall texture** (Tools panel): texture for painted walls / low walls. `(map default)` = the map's
+wall texture; another file is added to the map's texture table on first paint. Tiles with their
+own texture show a thumbnail on the grid; the status bar shows the texture under the cursor.
+
 The **Map** panel edits size, tile size, default textures and the 4 exits; the **Sprite** panel
-edits the selected sprite. **Problems** shows live validation: errors (the game would reject the
+edits the selected sprite, including its **Height (z)** — base height in wall units. A sprite
+placed on a low wall gets the wall's height automatically; **On tile top** sets it again after
+moving. **Problems** shows live validation: errors (the game would reject the
 map) block saving, warnings ask for confirmation.
 
 ## Format limits enforced (from the C code)
 - texture names: no spaces, max 63 chars, files from `maps/textures/`
 - exits: map path relative to the game directory or `NULL`, max 15 chars (`char exits[4][16]`)
 - tile types 0–4 (`TileType`), sprite types 0–3 (`SpriteType`), sprites inside the map
+- tile texture 0..table size (0 = map wall texture), sprite texture = table index
+- sprite inside a wall is a warning, except on a low wall with `z ≥` its height
 
 ## Code
 - `tpmap/` model + file format, no GUI dependency (`model.py`, `txt_format.py`)

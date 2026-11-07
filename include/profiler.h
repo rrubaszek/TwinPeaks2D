@@ -5,6 +5,7 @@ typedef enum {
     PROF_CLEAR,
     PROF_FLOOR,
     PROF_WALLS,
+    PROF_SPRITES,
     PROF_PRESENT,
     PROF_FRAME,
     PROF_COUNT

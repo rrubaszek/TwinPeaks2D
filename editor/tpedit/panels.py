@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDia
 from tpmap.model import EXIT_COUNT, NO_EXIT, MapData, Sprite, SpriteType, TileType
 from tpmap.txt_format import MAX_EXIT_NAME, MAX_TEXTURE_NAME, Issue
 
-from .canvas import SPRITE_COLORS, TILE_COLORS, Tool
+from .canvas import SPRITE_COLORS, TILE_COLORS, Tool, lowwall_height
 
 MAX_MAP_SIDE = 256
 
@@ -47,6 +47,7 @@ def texture_combo(textures_dir: Path) -> QComboBox:
 class ToolPanel(QWidget):
     tool_changed = Signal(object, object)    # Tool, TileType | None
     sprite_type_changed = Signal(object)     # SpriteType
+    wall_texture_changed = Signal(object)    # texture name, None = map wall texture
 
     TOOLS = [  # label, shortcut, tool, tile type
         ("Select / move", "S", Tool.SELECT, None),
@@ -58,7 +59,7 @@ class ToolPanel(QWidget):
         ("Place sprite", "P", Tool.SPRITE, None),
     ]
 
-    def __init__(self, parent=None):
+    def __init__(self, textures_dir: Path, parent=None):
         super().__init__(parent)
         layout = QVBoxLayout(self)
         self.group = QButtonGroup(self)
@@ -84,6 +85,15 @@ class ToolPanel(QWidget):
             self.sprite_type.addItem(swatch(SPRITE_COLORS[st]), st.name.capitalize(), st)
         layout.addWidget(self.sprite_type)
 
+        layout.addWidget(QLabel("Wall texture:"))
+        self.wall_texture = QComboBox()
+        self.wall_texture.addItem("(map default)", None)
+        for name in texture_names(textures_dir):
+            self.wall_texture.addItem(name, name)
+        self.wall_texture.setToolTip("Texture for painted walls / low walls; "
+                                     "added to the map's texture table on first paint")
+        layout.addWidget(self.wall_texture)
+
         hint = QLabel(
             "<small><b>Paint:</b> LMB draw, RMB erase, Shift+drag rectangle<br>"
             "<b>Sprite:</b> LMB place/select, RMB delete, Alt = no snap<br>"
@@ -97,6 +107,8 @@ class ToolPanel(QWidget):
         self.group.idToggled.connect(self._on_toggled)
         self.sprite_type.currentIndexChanged.connect(
             lambda: self.sprite_type_changed.emit(self.sprite_type.currentData()))
+        self.wall_texture.currentIndexChanged.connect(
+            lambda: self.wall_texture_changed.emit(self.wall_texture.currentData()))
         self.buttons[1].setChecked(True)
 
     def _on_toggled(self, idx: int, checked: bool) -> None:
@@ -209,9 +221,10 @@ class MapPanel(QWidget):
 class SpritePanel(QWidget):
     sprite_edited = Signal(object)   # Sprite
 
-    def __init__(self, parent=None):
+    def __init__(self, textures_dir: Path, parent=None):
         super().__init__(parent)
         self.sprite: Sprite | None = None
+        self.map: MapData | None = None  # owns the texture table the sprite indexes
         form = QFormLayout(self)
         self.info = QLabel("No sprite selected")
         form.addRow(self.info)
@@ -220,24 +233,34 @@ class SpritePanel(QWidget):
         for st in SpriteType:
             self.type.addItem(swatch(SPRITE_COLORS[st]), st.name.capitalize(), st)
         self.x, self.y = self._dspin(0, MAX_MAP_SIDE, 0.5), self._dspin(0, MAX_MAP_SIDE, 0.5)
-        self.texture_id = QSpinBox()
-        self.texture_id.setRange(0, 9999)
-        self.texture_id.setToolTip("Stored in the file; the game does not map it to a texture yet")
+        self.texture = QComboBox()  # not editable: typing would add partial names to the table
+        self.texture.addItems(texture_names(textures_dir))
+        self.texture.setToolTip("Picked texture is added to the map's texture table if missing")
         self.scale = self._dspin(0.01, 10, 0.05)
         self.scale.setToolTip("1.0 = person height, 0.3 = mug")
         self.collision_r = self._dspin(0, 5, 0.05)
         self.collision_r.setToolTip("Radius in tiles for interaction/blocking, 0 = none")
+        self.z = self._dspin(0, 2, 0.05)
+        self.z.setToolTip("Base height in wall units; 0.5 = on top of a 0.5 counter")
+        self.on_tile_top = QPushButton("On tile top")
+        self.on_tile_top.setToolTip("Set height to the low wall under the sprite (0 elsewhere)")
 
         form.addRow("Type", self.type)
         form.addRow("X (tiles)", self.x)
         form.addRow("Y (tiles)", self.y)
-        form.addRow("Texture id", self.texture_id)
+        form.addRow("Texture", self.texture)
         form.addRow("Scale", self.scale)
         form.addRow("Collision radius", self.collision_r)
+        z_row = QHBoxLayout()
+        z_row.addWidget(self.z)
+        z_row.addWidget(self.on_tile_top)
+        form.addRow("Height (z)", z_row)
 
         self.type.currentIndexChanged.connect(self._commit)
-        for w in (self.x, self.y, self.scale, self.collision_r, self.texture_id):
+        for w in (self.x, self.y, self.scale, self.collision_r, self.z):
             w.valueChanged.connect(self._commit)
+        self.on_tile_top.clicked.connect(self.put_on_tile_top)
+        self.texture.activated.connect(lambda _: self.choose_texture(self.texture.currentText()))
         self.set_sprite(None)
 
     @staticmethod
@@ -248,18 +271,43 @@ class SpritePanel(QWidget):
         s.setSingleStep(step)
         return s
 
+    def set_map(self, m: MapData) -> None:
+        self.map = m
+        self.set_sprite(None)
+
+    def choose_texture(self, name: str) -> None:
+        """Points the selected sprite at `name`, adding it to the texture table if needed."""
+        s, m = self.sprite, self.map
+        if s is None or m is None or not name:
+            return
+        s.texture_id = m.texture_index(name)
+        self.sprite_edited.emit(s)
+
+    def put_on_tile_top(self) -> None:
+        """z = height of the low wall under the selected sprite, 0 if it stands on anything else."""
+        s, m = self.sprite, self.map
+        if s is None or m is None:
+            return
+        self.z.setValue(lowwall_height(m, s.x, s.y))   # valueChanged -> _commit
+
     def set_sprite(self, s: Sprite | None) -> None:
         self.sprite = None  # block _commit while filling widgets
-        for w in (self.type, self.x, self.y, self.texture_id, self.scale, self.collision_r):
+        for w in (self.type, self.x, self.y, self.texture, self.scale, self.collision_r,
+                  self.z, self.on_tile_top):
             w.setEnabled(s is not None)
         if s is not None:
             self.info.setText("Selected sprite")
             self.type.setCurrentIndex(self.type.findData(s.type))
             self.x.setValue(s.x)
             self.y.setValue(s.y)
-            self.texture_id.setValue(s.texture_id)
+            textures = self.map.textures if self.map else []
+            name = textures[s.texture_id] if 0 <= s.texture_id < len(textures) else ""
+            if name and self.texture.findText(name) < 0:
+                self.texture.addItem(name)  # in the table, but not in maps/textures
+            self.texture.setCurrentIndex(self.texture.findText(name) if name else -1)
             self.scale.setValue(s.scale)
             self.collision_r.setValue(s.collision_r)
+            self.z.setValue(s.z)
         else:
             self.info.setText("No sprite selected")
         self.sprite = s
@@ -270,9 +318,9 @@ class SpritePanel(QWidget):
             return
         s.type = self.type.currentData()
         s.x, s.y = self.x.value(), self.y.value()
-        s.texture_id = self.texture_id.value()
         s.scale = self.scale.value()
         s.collision_r = self.collision_r.value()
+        s.z = self.z.value()
         self.sprite_edited.emit(s)
 
 

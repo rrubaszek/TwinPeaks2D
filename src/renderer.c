@@ -8,18 +8,28 @@
 
 double z_buffer[SCREEN_WIDTH]; // Store distance to walls for each column for texture mapping
 
+// Wall span per column [wall_start, wall_end), filled by raycaster, read by floor pass
+static int wall_start[SCREEN_WIDTH];
+static int wall_end[SCREEN_WIDTH];
+
+// Low walls per column, near to far, filled by raycaster
+static LowSeg low_segs[SCREEN_WIDTH][MAX_LOW_SEGS];
+static int low_count[SCREEN_WIDTH];
+
 float compute_shade(double distance, float side_factor) {
     float brightness = 1.0f - (float)(distance / 10.0);
     if (brightness < 0.0f) brightness = 0.0f;
     return side_factor * brightness;
 }
 
-int comp (const void * elem1, const void * elem2) {
+// qsort comparator: farthest sprite first
+static int compare_sprite_distance_desc(const void * elem1, const void * elem2) {
     double f = (*(SpriteOrder*)elem1).distance;
     double s = (*(SpriteOrder*)elem2).distance;
     if (f > s) return -1; // descending order
     if (f < s) return 1;
-    return 0;
+    float zf = ((const SpriteOrder*)elem1)->z, zs = ((const SpriteOrder*)elem2)->z;
+    return (zf > zs) - (zf < zs);   // equal depth: lower first, so a pie on a table is drawn on top
 }
 
 Uint32 apply_shade(Uint32 color, float shade) {
@@ -39,17 +49,6 @@ static inline Uint32 shade_mul(Uint32 color, Uint32 mul) {
 }
 
 
-double* calculate_sprite_distances(Camera* camera, const Grid* g) {
-    double* distances = malloc(g->sprite_count * sizeof(double));
-    double camTileX = camera->x / g->tile_size;
-    double camTileY = camera->y / g->tile_size;
-    for (int i = 0; i < g->sprite_count; i++) {
-        double dx = g->sprites[i].x - camTileX;
-        double dy = g->sprites[i].y - camTileY;
-        distances[i] = dx*dx + dy*dy;
-    }
-    return distances;
-}
 
 void draw_camera(Camera* camera, SDL_Renderer* renderer) {
     int screen_x = (int)camera->x;
@@ -93,7 +92,8 @@ void draw_map(SDL_Renderer* renderer, const Grid* g) {
     }
 }
 
-RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, const Grid* g) {
+RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, const Grid* g,
+                    LowSeg* segs, int* seg_count) {
     RaycastHit result;
     result.rayDirX = rayDirX;
     result.rayDirY = rayDirY;
@@ -142,7 +142,16 @@ RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, co
         }
         Tile* t = get_tile(g, mapX, mapY);
         if (t && is_tile_solid(t)) {
-            hit = 1;
+            if (t->height >= 1.0f) {
+                hit = 1;
+            } else if (segs && *seg_count < MAX_LOW_SEGS) {
+                // Low wall: remember it and keep going; further ones beyond the limit are skipped
+                segs[*seg_count] = (LowSeg){
+                    side == 0 ? sideDistX - deltaDistX : sideDistY - deltaDistY,
+                    sideDistX < sideDistY ? sideDistX : sideDistY,
+                    side, mapX, mapY };
+                (*seg_count)++;
+            }
         }
     }
 
@@ -156,8 +165,15 @@ RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, co
 
 // TODO: Implement specific textures via texture manager
 void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
-    Texture* wall_texture = texman_get(tm, g->wall_tex_id);
-    if (!wall_texture) return;
+    Texture* default_tex = texman_get(tm, g->wall_tex_id);
+    if (!default_tex) {
+        // No walls drawn: floor/ceiling must cover every column
+        for (int i = 0; i < SCREEN_WIDTH; i++) {
+            wall_start[i] = SCREEN_HEIGHT / 2;
+            wall_end[i]   = SCREEN_HEIGHT / 2;
+        }
+        return;
+    }
 
     for (int i = 0; i < SCREEN_WIDTH; i++) {
 
@@ -165,7 +181,16 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
         double rayDirX = view->dirX + view->planeX * cameraX;
         double rayDirY = view->dirY + view->planeY * cameraX;
 
-        RaycastHit hit = cast_ray(view->posX, view->posY, rayDirX, rayDirY, g);
+        low_count[i] = 0;
+        RaycastHit hit = cast_ray(view->posX, view->posY, rayDirX, rayDirY, g,
+                                  low_segs[i], &low_count[i]);
+
+        // Texture of the hit tile; rays that leave the map use the map default
+        Texture* wall_texture = default_tex;
+        if (hit.mapX >= 0 && hit.mapX < g->w && hit.mapY >= 0 && hit.mapY < g->h) {
+            Texture* t = texman_get(tm, g->map[hit.mapY][hit.mapX].texture_id);
+            if (t) wall_texture = t;
+        }
 
         // Guard against division by zero when standing right at a wall
         double dist = hit.perpWallDist;
@@ -192,6 +217,8 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
         int draw_end   = (SCREEN_HEIGHT + line_height) / 2;
         if (draw_start < 0) draw_start = 0;
         if (draw_end > SCREEN_HEIGHT) draw_end = SCREEN_HEIGHT;
+        wall_start[i] = draw_start;
+        wall_end[i]   = draw_end;
 
         float shade = compute_shade(dist, hit.side == 0 ? 0.9f : 0.7f);
         Uint32 mul = (Uint32)(shade * 256.0f);   // shade in [0, 1] -> [0, 256]
@@ -216,62 +243,201 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
     }
 }
 
-// TODO: Implement specific textures for sprites
-void render_sprites(Camera* camera, SDL_Renderer* renderer, const Grid* g) {
-    double* distances = calculate_sprite_distances(camera, g);
+// Draws low-wall front faces recorded by raycaster, far to near; call after the floor pass
+void render_low_walls(CameraView* view, TextureManager* tm, const Grid* g) {
+    Texture* default_tex = texman_get(tm, g->wall_tex_id);
 
-    SpriteOrder sprite_order[g->sprite_count];
-    for (int i = 0; i < g->sprite_count; i++) {
-        sprite_order[i].index = i;
-        sprite_order[i].distance = distances[i];
+    for (int i = 0; i < SCREEN_WIDTH; i++) {
+        double cameraX = 2 * i / (double)SCREEN_WIDTH - 1;
+        double rayDirX = view->dirX + view->planeX * cameraX;
+        double rayDirY = view->dirY + view->planeY * cameraX;
+
+        for (int k = low_count[i] - 1; k >= 0; k--) {         // far to near: near covers far
+            const LowSeg* s = &low_segs[i][k];
+            const Tile* tile = &g->map[s->mapY][s->mapX];
+            Texture* tex = texman_get(tm, tile->texture_id);
+            if (!tex) tex = default_tex;
+            if (!tex) continue;
+
+            double dist = s->dist_near < 1e-4 ? 1e-4 : s->dist_near;
+
+            // texture X, same as raycaster
+            double wallX = s->side == 0 ? view->posY + dist * rayDirY : view->posX + dist * rayDirX;
+            wallX -= floor(wallX);
+            int texX = (int)(wallX * tex->width);
+            if ((s->side == 0 && rayDirX > 0) || (s->side == 1 && rayDirY < 0))
+                texX = tex->width - texX - 1;
+
+            // Face stands on the floor line of a full wall at this distance, height = tile height
+            int line_height = (int)(SCREEN_HEIGHT / dist);
+            if (line_height < 1) line_height = 1;
+            int face_bottom = (SCREEN_HEIGHT + line_height) / 2;
+            int face_h      = (int)(line_height * tile->height);
+            if (face_h < 1) continue;
+            int face_top    = face_bottom - face_h;
+
+            // Top face: visible only below eye level (0.5). Screen row y sees the plane at
+            // height h at distance k / (y - H/2), like floor casting with a raised floor.
+            // TODO: separate top texture (e.g. tablecloth); for now the tile texture, 1 copy per tile
+            if (tile->height < 0.5f) {
+                double k = (0.5 - tile->height) * SCREEN_HEIGHT;
+                // Far edge row: same formula as low_wall_clip / sprite bottom, so they line up
+                int top_start = (int)(SCREEN_HEIGHT / 2.0 + k / s->dist_far);
+                if (top_start <= SCREEN_HEIGHT / 2) top_start = SCREEN_HEIGHT / 2 + 1;
+                int top_end = face_top > SCREEN_HEIGHT ? SCREEN_HEIGHT : face_top;
+
+                // Index per row (not a running pointer): top_start may lie below the screen
+                for (int y = top_start; y < top_end; y++) {
+                    double d = k / (y - SCREEN_HEIGHT / 2.0);
+                    double wx = view->posX + d * rayDirX;
+                    double wy = view->posY + d * rayDirY;
+                    int u = (int)((wx - floor(wx)) * tex->width);
+                    int v = (int)((wy - floor(wy)) * tex->height);
+                    if (u >= tex->width)  u = tex->width - 1;    // guard rounding to exactly 1.0
+                    if (v >= tex->height) v = tex->height - 1;
+                    Uint32 mul = (Uint32)(compute_shade(d, 1.0f) * 256.0f);
+                    framebuffer[y * SCREEN_WIDTH + i] = shade_mul(tex->pixels[v * tex->width + u], mul);
+                }
+            }
+
+            int draw_start = face_top < 0 ? 0 : face_top;
+            int draw_end   = face_bottom > SCREEN_HEIGHT ? SCREEN_HEIGHT : face_bottom;
+
+            Uint32 mul = (Uint32)(compute_shade(dist, s->side == 0 ? 0.9f : 0.7f) * 256.0f);
+
+            // Whole texture squeezed onto the face (counter textures are drawn to fit)
+            double step = (double)tex->height / face_h;
+            double tex_pos = (draw_start - face_top) * step;
+            if (draw_start >= draw_end) continue;   // face below the screen; dst would be out of bounds
+            Uint32* dst = &framebuffer[draw_start * SCREEN_WIDTH + i];
+            for (int y = draw_start; y < draw_end; y++) {
+                int texY = (int)tex_pos;
+                if (texY >= tex->height) texY = tex->height - 1;
+                tex_pos += step;
+                *dst = shade_mul(tex->pixels[texY * tex->width + texX], mul);
+                dst += SCREEN_WIDTH;
+            }
+        }
     }
+}
 
-    qsort(sprite_order, g->sprite_count, sizeof(SpriteOrder), comp); // Sort sprites by distance from camera (farthest to closest)
+// compute_shade() reaches 0 at distance 10 - sprites past it would be drawn black
+#define SPRITE_MAX_DEPTH 10.0
 
-    double camTileX = camera->x / g->tile_size;
-    double camTileY = camera->y / g->tile_size;
-    for(int i = 0; i < g->sprite_count; i++) {
-        Sprite* sprite = &g->sprites[sprite_order[i].index];
+// First screen row hidden by low walls nearer than `depth` in this column (SCREEN_HEIGHT = none).
+// Counts only the part of each block in front of the sprite, so a pie on a counter stays visible.
+static int low_wall_clip(int col, double depth, const Grid* g) {
+    int clip = SCREEN_HEIGHT;
+    for (int k = 0; k < low_count[col]; k++) {
+        const LowSeg* s = &low_segs[col][k];
+        if (s->dist_near >= depth) break;              // near to far: the rest is behind the sprite
+        float h = g->map[s->mapY][s->mapX].height;
 
-        double spriteX = sprite->x - camTileX;
-        double spriteY = sprite->y - camTileY;
+        // Front face top, same integer formula as render_low_walls
+        double d1 = s->dist_near < 1e-4 ? 1e-4 : s->dist_near;
+        int lh = (int)(SCREEN_HEIGHT / d1);
+        if (lh < 1) lh = 1;
+        int front_top = (SCREEN_HEIGHT + lh) / 2 - (int)(lh * h);
 
-        double dirX   = cos(camera->angle);
-        double dirY   = sin(camera->angle);
-        double planeX = -dirY * tan(FOV / 2);
-        double planeY =  dirX * tan(FOV / 2);
+        // Top surface up to the sprite's depth; same formula as the sprite's bottom, so z = h lines up
+        double d2 = s->dist_far < depth ? s->dist_far : depth;
+        int far_top = (int)(SCREEN_HEIGHT / 2.0 + (0.5 - h) * (SCREEN_HEIGHT / d2));
 
-        // inverse camera matrix
-        double invDet = 1.0 / (planeX * dirY - dirX * planeY);
+        int top = front_top < far_top ? front_top : far_top;
+        if (top < clip) clip = top;
+    }
+    return clip;
+}
 
-        double transformX = invDet * ( dirY * spriteX - dirX * spriteY);
-        double transformY = invDet * (-planeY * spriteX + planeX * spriteY);
+// TODO: Implement specific textures for sprites
+// Draws sprites into the framebuffer, far to near, hidden behind walls via z_buffer.
+void render_sprites(CameraView* view, TextureManager* tm, const Grid* g) {
+    if (g->sprite_count == 0) return; // sprite_order is NULL then; qsort requires non-NULL
 
-        if (transformY <= 0) continue;  // behind camera, skip
+    SpriteOrder* sprite_order = g->sprite_order; // pre-allocated per map, no per-frame alloc
+
+    // Inverse camera matrix - the same for every sprite
+    double invDet = 1.0 / (view->planeX * view->dirY - view->dirX * view->planeY);
+
+    // Transform + cull first, so only potentially visible sprites get sorted and drawn
+    int n = 0;
+    for (int i = 0; i < g->sprite_count; i++) {
+        const Sprite* sprite = &g->sprites[i];
+        const Texture* tex = texman_get(tm, sprite->texture_id);
+        if (!sprite->visible || !tex) continue;
+
+        double spriteX = sprite->x - view->posX;
+        double spriteY = sprite->y - view->posY;
+        double transformX = invDet * ( view->dirY * spriteX - view->dirX * spriteY);
+        double transformY = invDet * (-view->planeY * spriteX + view->planeX * spriteY);
+
+        // Behind camera / too close (int overflow later) / beyond where shading reaches 0
+        if (transformY < 1e-2 || transformY >= SPRITE_MAX_DEPTH) continue;
+
+        // Off-screen sideways: centre offset minus half sprite width, in units of depth
+        double half_w = (double)SCREEN_HEIGHT / SCREEN_WIDTH * sprite->scale
+                        * tex->width / tex->height;
+        if (fabs(transformX) - half_w > transformY) continue;
+
+        sprite_order[n++] = (SpriteOrder){ i, transformY, transformX, sprite->z };
+    }
+    qsort(sprite_order, n, sizeof(SpriteOrder), compare_sprite_distance_desc); // farthest first
+
+    for (int i = 0; i < n; i++) {
+        const Sprite* sprite = &g->sprites[sprite_order[i].index];
+        const Texture* tex = texman_get(tm, sprite->texture_id);
+        double transformX = sprite_order[i].transformX;
+        double transformY = sprite_order[i].distance;
 
         // transformY is depth, transformX is horizontal offset
         int sprite_screen_x = (int)((SCREEN_WIDTH / 2) * (1 + transformX / transformY));
 
-        int sprite_height = (int)(SCREEN_HEIGHT / transformY);
-        if (sprite_height > SCREEN_HEIGHT) sprite_height = SCREEN_HEIGHT;
-        int sprite_width = sprite_height / 2; // Assuming square sprites for now
+        // Full wall height at this depth; the sprite base is at height z (see bottom)
+        double line_height = SCREEN_HEIGHT / transformY;
+        int sprite_height = (int)(line_height * sprite->scale);
+        int sprite_width  = (int)((double)sprite_height * tex->width / tex->height);
+        if (sprite_height < 1 || sprite_width < 1) continue;
 
-        int draw_start_y = (SCREEN_HEIGHT - sprite_height) / 2;
-        int draw_end_y = (SCREEN_HEIGHT + sprite_height) / 2;   
-        int draw_start_x = sprite_screen_x - sprite_width / 2;
-        int draw_end_x = sprite_screen_x + sprite_width / 2;
+        // Base at height z: the floor line (z = 0) moves up by z wall heights
+        int bottom = (int)(SCREEN_HEIGHT / 2.0 + (0.5 - sprite->z) * line_height);
+        int top    = bottom - sprite_height;
+        int left   = sprite_screen_x - sprite_width / 2;
+
+        // Only the drawn range is clipped, so the texture is cropped, not squeezed
+        int draw_start_y = top < 0 ? 0 : top;
+        int draw_end_y   = bottom > SCREEN_HEIGHT ? SCREEN_HEIGHT : bottom;
+        int draw_start_x = left < 0 ? 0 : left;
+        int draw_end_x   = left + sprite_width > SCREEN_WIDTH ? SCREEN_WIDTH : left + sprite_width;
+        if (draw_start_y >= draw_end_y) continue;   // sprite below/above the screen; dst would be out of bounds
+
+        Uint32 mul = (Uint32)(compute_shade(transformY, 1.0f) * 256.0f);
+        double step = (double)tex->height / sprite_height;
+        double tex_pos_start = (draw_start_y - top) * step;
 
         for (int col = draw_start_x; col < draw_end_x; col++) {
-            if (col < 0 || col >= SCREEN_WIDTH) continue;
+            if (transformY >= z_buffer[col]) continue; // wall is closer
 
-            if (transformY >= z_buffer[col]) continue;
+            int texX = (int)((double)(col - left) * tex->width / sprite_width);
+            const Uint32* src = &tex->pixels[texX];
+            double tex_pos = tex_pos_start;
+            Uint32* dst = &framebuffer[draw_start_y * SCREEN_WIDTH + col];
 
-            SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // Red color for sprites
-            SDL_RenderDrawLine(renderer, col, draw_start_y, col, draw_end_y);
+            // Low walls in front of the sprite hide its lower part
+            int col_end = draw_end_y;
+            int clip = low_wall_clip(col, transformY, g);
+            if (clip < col_end) col_end = clip;
+
+            for (int y = draw_start_y; y < col_end; y++) {
+                int texY = (int)tex_pos;
+                if (texY >= tex->height) texY = tex->height - 1;
+                tex_pos += step;
+
+                Uint32 color = src[texY * tex->width];
+                if (color >> 24) *dst = shade_mul(color, mul); // alpha 0 = transparent
+                dst += SCREEN_WIDTH;
+            }
         }
     }
-
-    free(distances);
 }
 
 // TODO: Implement specific textures via texture manager
@@ -322,8 +488,12 @@ void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
         if (v >= H) v -= H;
 
         for (int x = 0; x < SCREEN_WIDTH; x++) {
-            Uint32 color = tex->pixels[(v >> 16) * tex->width + (u >> 16)];
-            row[x] = shade_mul(color, mul);
+            // Skip pixels the wall pass already drew (raycaster must run first)
+            bool visible = is_floor ? (y >= wall_end[x]) : (y < wall_start[x]);
+            if (visible) {
+                Uint32 color = tex->pixels[(v >> 16) * tex->width + (u >> 16)];
+                row[x] = shade_mul(color, mul);
+            }
 
             u += du; if (u >= W) u -= W; else if (u < 0) u += W;
             v += dv; if (v >= H) v -= H; else if (v < 0) v += H;

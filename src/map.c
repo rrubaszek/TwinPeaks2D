@@ -46,6 +46,27 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
         goto fail;
     }
 
+    // Read map texture table: count, then file names; sprites refer to it by index
+    int tex_count;
+    if (fscanf(fptr, "%d", &tex_count) != 1 || tex_count < 0 || tex_count > MAX_TEXTURES) {
+        fprintf(stderr, "%s: invalid texture table size\n", filename);
+        goto fail;
+    }
+    int tex_ids[MAX_TEXTURES];
+    for (int i = 0; i < tex_count; i++) {
+        char name[64], path[128];
+        if (fscanf(fptr, "%63s", name) != 1) {
+            fprintf(stderr, "%s: missing texture name %d\n", filename, i);
+            goto fail;
+        }
+        snprintf(path, sizeof(path), "%s%s", TEXTURE_PATH, name);
+        tex_ids[i] = texman_load(tm, path);
+        if (tex_ids[i] < 0) {
+            fprintf(stderr, "%s: failed to load texture %s\n", filename, name);
+            goto fail;
+        }
+    }
+
     // Read map itself
     g->map = calloc(g->h, sizeof(Tile*));
     if (!g->map) {
@@ -65,9 +86,14 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
                 fprintf(stderr, "%s: invalid tile at row %d, col %d\n", filename, i, j);
                 goto fail;
             }
+            // Tile texture: 0 = map default wall texture, k >= 1 = texture table entry k-1
+            if (tex_id < 0 || tex_id > tex_count) {
+                fprintf(stderr, "%s: tile at row %d, col %d: texture %d not in table\n",
+                        filename, i, j, tex_id);
+                goto fail;
+            }
             g->map[i][j].type = (TileType)type;
-            // TODO: Where to load specific textures like window, door, painting ... ?
-            g->map[i][j].texture_id = tex_id; // Placeholder for specific textures - currently not loaded
+            g->map[i][j].texture_id = tex_id == 0 ? g->wall_tex_id : tex_ids[tex_id - 1];
             g->map[i][j].height = height;
         }
     }
@@ -96,7 +122,8 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
     }
     if (g->sprite_count > 0) {
         g->sprites = malloc(g->sprite_count * sizeof(Sprite));
-        if (!g->sprites) {
+        g->sprite_order = malloc(g->sprite_count * sizeof(SpriteOrder));
+        if (!g->sprites || !g->sprite_order) {
             fprintf(stderr, "%s: out of memory\n", filename);
             goto fail;
         }
@@ -113,6 +140,17 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
             fprintf(stderr, "%s: invalid sprite %d\n", filename, i);
             goto fail;
         }
+        int t = g->sprites[i].texture_id;
+        if (t < 0 || t >= tex_count) {
+            fprintf(stderr, "%s: sprite %d: texture index %d not in table\n", filename, i, t);
+            goto fail;
+        }
+        // Optional 7th field: base height z (old maps have 6 fields -> z = 0)
+        char rest[64];
+        float z = 0.0f;
+        if (fgets(rest, sizeof rest, fptr) && sscanf(rest, "%f", &z) != 1) z = 0.0f;
+        g->sprites[i].z = z;
+        g->sprites[i].texture_id = tex_ids[t];
         g->sprites[i].type = (SpriteType)stype;
         g->sprites[i].visible = true;
         g->sprites[i].state = NULL;
@@ -137,6 +175,7 @@ void free_grid(Grid* g) {
     }
     free(g->map);
     free(g->sprites);
+    free(g->sprite_order);
     free(g);
 }
 

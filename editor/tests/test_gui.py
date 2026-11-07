@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QMessageBox
 from tpedit.canvas import CELL, Tool
 from tpedit.main_window import MAPS_DIR, MainWindow
 from tpmap.model import SpriteType, TileType
-from tpmap.txt_format import load_map
+from tpmap.txt_format import load_map, validate
 
 B = Qt.MouseButton
 NO_MOD = Qt.KeyboardModifier.NoModifier
@@ -128,6 +128,9 @@ def test_save_and_reload(win, tmp_path):
     win.canvas.set_tool(Tool.SPRITE)
     mouse(win, "press", tile_pos(win, 5, 5))
     mouse(win, "release", tile_pos(win, 5, 5))
+    assert any("not in texture table" in i.message for i in validate(win.map))
+    win.sprite_panel.choose_texture("sprite_pie.bmp")
+    assert win.map.textures == ["sprite_pie.bmp"] and win.map.sprites[0].texture_id == 0
 
     out = tmp_path / "m.txt"
     assert win._write(out)
@@ -151,3 +154,38 @@ def test_open_game_map(win):
     assert win.map.exits[2] == "maps/map2.txt"
     assert win.map_panel.exit_edits[2].text() == "maps/map2.txt"
     assert win.issues.item(0).text() == "No problems found"
+
+
+def test_paint_wall_with_texture(win):
+    win.tools.wall_texture.addItem("forest.jpeg", "forest.jpeg")   # textures dir may be empty
+    win.tools.wall_texture.setCurrentIndex(win.tools.wall_texture.findData("forest.jpeg"))
+    assert win.canvas.paint_texture == "forest.jpeg"
+    assert "forest.jpeg" not in win.map.textures                   # joins the table on paint
+    win.canvas.set_tool(Tool.PAINT, TileType.WALL)
+    drag(win, tile_pos(win, 2, 3), tile_pos(win, 4, 3))
+    idx = win.map.textures.index("forest.jpeg")
+    assert all(win.map.tile(x, 3).texture_id == idx + 1 for x in range(2, 5))
+
+    drag(win, tile_pos(win, 3, 3), tile_pos(win, 3, 3), button=B.RightButton)   # erase
+    assert win.map.tile(3, 3).texture_id == 0
+
+    win.tools.wall_texture.setCurrentIndex(0)                       # (map default)
+    assert win.canvas.paint_texture is None
+    drag(win, tile_pos(win, 2, 3), tile_pos(win, 2, 3))
+    assert win.map.tile(2, 3).texture_id == 0
+
+
+def test_sprite_on_counter_gets_z(win):
+    win.canvas.set_tool(Tool.PAINT, TileType.LOWWALL)
+    drag(win, tile_pos(win, 3, 4), tile_pos(win, 3, 4))
+    win.canvas.set_tool(Tool.SPRITE)
+    mouse(win, "press", tile_pos(win, 3, 4))
+    mouse(win, "release", tile_pos(win, 3, 4))
+    s = win.map.sprites[-1]
+    assert (s.x, s.y, s.z) == (3.5, 4.5, 0.5)                     # placed on the counter
+    assert win.sprite_panel.z.value() == 0.5
+
+    win.sprite_panel.z.setValue(0.2)                               # field edits the model
+    assert s.z == 0.2
+    win.sprite_panel.on_tile_top.click()                           # button snaps back to the top
+    assert s.z == 0.5

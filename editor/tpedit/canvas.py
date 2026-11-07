@@ -4,14 +4,15 @@ from __future__ import annotations
 
 import math
 from enum import Enum
+from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QApplication, QGraphicsEllipseItem, QGraphicsItem,
                                QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem,
                                QGraphicsView, QStyle, QStyleOptionGraphicsItem)
 
-from tpmap.model import MapData, Sprite, SpriteType, TileType
+from tpmap.model import TEXTURED_TILES, MapData, Sprite, SpriteType, TileType
 
 CELL = 32.0          # scene units per tile
 SPRITE_SNAP = 0.5    # sprites snap to half tiles (hold Alt for free placement)
@@ -37,6 +38,14 @@ SPRITE_LETTERS = {SpriteType.STATIC: "S", SpriteType.INTERACTIVE: "I",
 GRID_COLOR = QColor("#3a3a3a")
 
 
+def lowwall_height(m: MapData, x: float, y: float) -> float:
+    """Height of the low wall at tile position (x, y), 0 if there is none."""
+    tx, ty = math.floor(x), math.floor(y)
+    if m.in_bounds(tx, ty) and m.tile(tx, ty).type == TileType.LOWWALL:
+        return m.tile(tx, ty).height
+    return 0.0
+
+
 class Tool(Enum):
     SELECT = "select"
     PAINT = "paint"
@@ -46,9 +55,11 @@ class Tool(Enum):
 class TileLayer(QGraphicsItem):
     """All tiles in one item; repaints only the exposed area."""
 
-    def __init__(self, map_data: MapData):
+    def __init__(self, map_data: MapData, textures_dir: Path | None = None):
         super().__init__()
         self.map = map_data
+        self.textures_dir = textures_dir
+        self._pixmaps: dict[str, QPixmap | None] = {}   # thumbnail cache, None = missing file
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemUsesExtendedStyleOption)
         self._font = QFont()
         self._font.setPixelSize(int(CELL * 0.45))
@@ -56,6 +67,16 @@ class TileLayer(QGraphicsItem):
 
     def boundingRect(self) -> QRectF:
         return QRectF(0, 0, self.map.width * CELL, self.map.height * CELL)
+
+    def _thumbnail(self, texture_id: int) -> QPixmap | None:
+        """Pixmap of a tile texture (table entry texture_id-1), None if default or missing."""
+        if texture_id <= 0 or texture_id > len(self.map.textures) or self.textures_dir is None:
+            return None
+        name = self.map.textures[texture_id - 1]
+        if name not in self._pixmaps:
+            pm = QPixmap(str(self.textures_dir / name))
+            self._pixmaps[name] = None if pm.isNull() else pm
+        return self._pixmaps[name]
 
     def paint(self, painter: QPainter, option, widget=None) -> None:
         r = option.exposedRect
@@ -65,9 +86,13 @@ class TileLayer(QGraphicsItem):
         painter.setFont(self._font)
         for y in range(y0, y1):
             for x in range(x0, x1):
-                t = self.map.tile(x, y).type
+                tile = self.map.tile(x, y)
+                t = tile.type
                 cell = QRectF(x * CELL, y * CELL, CELL, CELL)
                 painter.fillRect(cell, TILE_COLORS[t])
+                pm = self._thumbnail(tile.texture_id)
+                if pm is not None:  # own texture: thumbnail inside a frame of the type colour
+                    painter.drawPixmap(cell.adjusted(3, 3, -3, -3), pm, QRectF(pm.rect()))
                 letter = TILE_LETTERS.get(t)
                 if letter:
                     painter.setPen(QColor("#1b1b1b"))
@@ -120,7 +145,7 @@ class SpriteItem(QGraphicsEllipseItem):
         b = self.label.boundingRect()
         self.label.setPos(-b.width() / 2, -b.height() / 2)
         self.setToolTip(f"{s.type.name.lower()} sprite\ntexture {s.texture_id}, scale {s.scale}, "
-                        f"collision {s.collision_r}")
+                        f"collision {s.collision_r}, z {s.z}")
         self.setPos(s.x * CELL, s.y * CELL)
         self._syncing = False
 
@@ -151,8 +176,9 @@ class MapCanvas(QGraphicsView):
     sprite_moved = Signal(object)      # Sprite
     hover = Signal(int, int)           # tile under cursor, (-1, -1) outside
 
-    def __init__(self, parent=None):
+    def __init__(self, textures_dir: Path | None = None, parent=None):
         super().__init__(parent)
+        self.textures_dir = textures_dir
         self.setScene(QGraphicsScene(self))
         self.setRenderHint(QPainter.RenderHint.Antialiasing)
         self.setBackgroundBrush(QColor("#121212"))
@@ -166,6 +192,7 @@ class MapCanvas(QGraphicsView):
 
         self.tool = Tool.PAINT
         self.paint_type = TileType.WALL
+        self.paint_texture: str | None = None   # None = map wall texture
         self.sprite_type = SpriteType.STATIC
 
         self._pan_from: QPointF | None = None
@@ -180,7 +207,7 @@ class MapCanvas(QGraphicsView):
         self.scene().clear()
         self.sprite_items.clear()
         self.map = m
-        self.tiles = TileLayer(m)
+        self.tiles = TileLayer(m, self.textures_dir)
         self.scene().addItem(self.tiles)
         for s in m.sprites:
             self._add_sprite_item(s)
@@ -241,6 +268,7 @@ class MapCanvas(QGraphicsView):
 
     def add_sprite(self, x: float, y: float) -> Sprite:
         s = Sprite(x, y, self.sprite_type, scale=0.3 if self.sprite_type == SpriteType.INTERACTIVE else 1.0)
+        s.z = lowwall_height(self.map, x, y)   # placed on a counter: stands on its top
         self.map.sprites.append(s)
         item = self._add_sprite_item(s)
         self.scene().clearSelection()
@@ -277,7 +305,10 @@ class MapCanvas(QGraphicsView):
         return math.floor(p.x() / CELL), math.floor(p.y() / CELL)
 
     def _paint_tile(self, x: int, y: int, tile_type: TileType) -> bool:
-        if self.map.set_tile(x, y, tile_type):
+        texture_id = 0
+        if self.paint_texture and tile_type in TEXTURED_TILES and self.map.in_bounds(x, y):
+            texture_id = self.map.texture_index(self.paint_texture) + 1  # joins table on first use
+        if self.map.set_tile(x, y, tile_type, texture_id):
             self.tiles.update_tile(x, y)
             return True
         return False

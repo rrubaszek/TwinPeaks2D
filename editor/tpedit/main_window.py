@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QDockWidget, QFileDialog, QLabel, QMainWindow, QMessageBox,
                                QScrollArea)
 
-from tpmap.model import MapData
+from tpmap.model import TEXTURED_TILES, MapData
 from tpmap.txt_format import MapFormatError, format_map, load_map, validate
 
 from .canvas import MapCanvas
@@ -27,12 +27,12 @@ class MainWindow(QMainWindow):
         self.dirty = False
         self.map: MapData | None = None
 
-        self.canvas = MapCanvas()
+        self.canvas = MapCanvas(TEXTURES_DIR)
         self.setCentralWidget(self.canvas)
 
-        self.tools = ToolPanel()
+        self.tools = ToolPanel(TEXTURES_DIR)
         self.map_panel = MapPanel(PROJECT_ROOT, TEXTURES_DIR)
-        self.sprite_panel = SpritePanel()
+        self.sprite_panel = SpritePanel(TEXTURES_DIR)
         self.issues = IssuesPanel()
         self._dock("Tools", self.tools, Qt.DockWidgetArea.LeftDockWidgetArea)
         self._dock("Map", self.map_panel, Qt.DockWidgetArea.RightDockWidgetArea)
@@ -110,6 +110,7 @@ class MainWindow(QMainWindow):
     def _connect(self) -> None:
         self.tools.tool_changed.connect(self.canvas.set_tool)
         self.tools.sprite_type_changed.connect(lambda st: setattr(self.canvas, "sprite_type", st))
+        self.tools.wall_texture_changed.connect(lambda n: setattr(self.canvas, "paint_texture", n))
         self.canvas.changed.connect(self._mark_dirty)
         self.canvas.hover.connect(self._show_hover)
         self.canvas.sprite_selected.connect(self.sprite_panel.set_sprite)
@@ -124,7 +125,7 @@ class MainWindow(QMainWindow):
         self.path = path
         self.canvas.set_map(m)
         self.map_panel.set_map(m)
-        self.sprite_panel.set_sprite(None)
+        self.sprite_panel.set_map(m)
         self.dirty = False
         self._update_title()
         self._run_validation()
@@ -149,8 +150,12 @@ class MainWindow(QMainWindow):
             self.status.setText(f"{m.width} × {m.height} tiles, {len(m.sprites)} sprites" if m else "")
             return
         t = m.tile(x, y)
+        tex = ""
+        if t.type in TEXTURED_TILES:
+            tex = m.textures[t.texture_id - 1] if 0 < t.texture_id <= len(m.textures) else \
+                  f"{m.wall_texture} (default)" if t.texture_id == 0 else "invalid texture"
         self.status.setText(f"Tile ({x}, {y})  {t.type.name.lower()}  "
-                            f"[{int(t.type)}:{t.texture_id}:{t.height}]")
+                            f"[{int(t.type)}:{t.texture_id}:{t.height}]  {tex}")
 
     def _sprite_moved(self, s) -> None:
         if self.sprite_panel.sprite is s:
