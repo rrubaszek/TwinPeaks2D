@@ -94,7 +94,7 @@ int main(void) {
         // draw_map(game.renderer, game.grid);
         // draw_camera(&cam, game.renderer);
 
-        // Draw celling and floor before raycaster, which draws the walls
+        // Old SDL_Renderer floor/ceiling fill (unused, framebuffer path below)
         // SDL_SetRenderDrawColor(game.renderer, 50, 50, 50, 255);
         // SDL_RenderFillRect(game.renderer, &floor);
 
@@ -106,13 +106,15 @@ int main(void) {
         clear_framebuffer(0x00000000);
         prof_end(PROF_CLEAR);
 
-        prof_begin(PROF_FLOOR);
-        render_floor_ceiling(&view, game.texman, game.grid);
-        prof_end(PROF_FLOOR);
-
+        // Walls first: raycaster records each column's wall span, and the floor pass
+        // skips those pixels. This order is required.
         prof_begin(PROF_WALLS);
         raycaster(&view, game.texman, game.grid);
         prof_end(PROF_WALLS);
+
+        prof_begin(PROF_FLOOR);
+        render_floor_ceiling(&view, game.texman, game.grid);
+        prof_end(PROF_FLOOR);
 
         prof_begin(PROF_SPRITES);
         render_sprites(&view, game.texman, game.grid);

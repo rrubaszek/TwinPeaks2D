@@ -39,19 +39,30 @@ więc przy ścianie tuż przed kamerą tekstura jest ściśnięta zamiast przyci
 Brak ochrony przed `perpWallDist == 0`.
 Kryterium: tekstura nie „pływa” przy podchodzeniu do ściany.
 
+### A4 `?` (odłożone) Sporadyczny SIGSEGV przy wyjściu z gry
+Problem: ok. 1 na 3 wyjścia kończy się SIGSEGV w `SDL_DestroyRenderer` → libSDL3 → Mesa
+(raz w `free()`). Core dumpy 37845, 38912 (`coredumpctl info <pid>`). Proponowany eksperyment:
+20× uruchomienie + SIGTERM na buildzie bieżącym / ASan / sprzed sprite'ów (d15bfe1).
+Kryterium: 20 kolejnych wyjść bez crasha albo przyczyna wskazana poza kodem projektu.
+
+### A5 `TODO` Błąd wyjść między mapami
+Problem: `handle_exit` (`src/camera.c`) zawsze bierze pierwsze nie-NULL wyjście
+(kolejność 2, 3, 1, 0), niezależnie od kafelka, na który wszedł gracz.
+Kryterium: mapa z dwoma wyjściami prowadzi do dwóch różnych map.
+
 ## B. Wydajność obliczeniowa
 
 ### B0 `DONE` (budżet B0.5 — do decyzji) Pomiar bazowy (warunek wstępny dla B1–B4)
 Instrumentacja czasu klatki i sekcji (`/perf-measure`), zapisany wynik bazowy.
 Kryterium: tabela czasów w `docs/perf-log.md` dla aktualnego commita.
 
-### B1 `WIP` (B1.1–B1.3 DONE: −64% czasu; B1.4 overdraw — plan gotowy, do decyzji) Koszt podłogi i sufitu
+### B1 `DONE` (B1.1–B1.3: −64% czasu; B1.4 overdraw: −19…−41% podłogi zależnie od widoku) Koszt podłogi i sufitu
 `render_floor_ceiling` przetwarza każdy piksel ekranu (480 000/klatkę) z kilkoma
 wywołaniami funkcji, operacjami zmiennoprzecinkowymi i modulo na piksel; część tych
 pikseli jest potem nadpisywana przez ściany (overdraw).
 Kryterium: ustalony procentowy zysk względem B0 (do określenia przez autora).
 
-### B2 `WIP` (B2.1–B2.2 DONE: −29% czasu; dalej: koszt zapisu kolumnami — do pomiaru) Koszt rysowania ścian
+### B2 `DONE` (B2.1–B2.2: −29% czasu; zapis kolumnami zmierzony — koszt niemierzalny, bez zmian) Koszt rysowania ścian
 Pętla wewnętrzna `raycaster` pisze kolumnami (dostęp do pamięci co 3200 B) przez
 `put_pixel` z kontrolą granic i cieniowaniem per piksel.
 Kryterium: j.w.
@@ -72,14 +83,15 @@ Kryterium: decyzja poparta pomiarem.
 Kryterium: zużycie pamięci stabilne po 20 przejściach (Valgrind/ASan bez wycieków
 z kodu projektu).
 
-### C2 `?` (przesunięte za D1 — `render_sprites` jest obecnie wyłączone) Alokacje w każdej klatce
-`render_sprites` alokuje tablicę odległości (`malloc`) i VLA w każdej klatce.
+### C2 `DONE` (`sprite_order` alokowane raz na mapę w `Grid`) Alokacje w każdej klatce
+`render_sprites` alokowało tablicę odległości (`malloc`) i VLA w każdej klatce.
 Kryterium: zero alokacji na stercie w pętli klatki.
 
 ## D. Funkcjonalność (z TODO w kodzie)
-- D1 `?` Sprite'y renderowane do framebuffera (obecnie wyłączone, rysowały przez SDL_Renderer)
+- D1 `DONE` Sprite'y renderowane do framebuffera — z_buffer, tekstury z tabeli tekstur mapy,
+  przezroczystość (alfa), stoją na podłodze (skala 1.0 = wysokość ściany), odrzucanie przed sortowaniem.
 - D5 `?` Las z animacją wiatru (wymaga D1)
-  - D5.1 Przezroczystość sprite'ów (alfa z PNG zamiast czarnego tła BMP) i tekstury drzew.
+  - D5.1 Przezroczystość sprite'ów (alfa z PNG zamiast czarnego tła BMP) — `DONE`; tekstury drzew — `TODO`.
   - D5.2 Wiele drzew: odrzucanie poza polem widzenia i za odległością, rysowanie od przodu do tyłu
     z buforem pokrycia (bez overdraw — ta sama idea co odłożone B1.4).
   - D5.3 Czas w rendererze (suma `dt`) + wiatr: przesunięcie `texX` w poziomie, rosnące ku
@@ -95,12 +107,22 @@ Kryterium: zero alokacji na stercie w pętli klatki.
 - D2 `?` Tekstury per kafelek (`texture_id` w `Tile` jest wczytywane, ale nieużywane)
 - D3 `?` Zależne stałe w `constants.h` (TODO autora)
 - D4 `?` Drzwi, przedmioty interaktywne, NPC (typy już zdefiniowane w `sprite.h`)
+  - Drzwi: kilka drzwi na jednej ścianie prowadzących do różnych pomieszczeń (np. korytarz
+    Grand Northern Hotel) → wyjścia przypisane do kafelka/drzwi zamiast stałych `exits[4][16]`
+    w `Grid` (powiązane z A5 i E3).
+- D6 `?` Koszt rysowania sprite'ów (pomiar S8 w `docs/perf-log.md`)
+  Koszt to wypełnianie pikseli (~23 Ir/px, także przezroczystych), nie liczba sprite'ów;
+  jeden sprite na cały ekran ≈ 2,9 ms (więcej niż ściany + podłoga). Kandydaci: zakresy
+  nieprzezroczyste per kolumna tekstury, krok współrzędnych tekstury w stałym przecinku.
+  Kryterium: sprite na cały ekran tańszy o ustalony % (pomiar jak S8).
 
 ## E. Systemy gry (z wizji)
 - E1 `?` Akcja „użyj/zbadaj” na obiekt w centrum ekranu (wymaga D1)
 - E2 `?` Ekwipunek
 - E3 `?` Stan świata trwały między mapami (dziś `handle_exit` ładuje mapę od zera)
-- E4 `WIP` Edytor map (format `maps/*.txt`) — v1 w `editor/` (PySide6): kafelki + sprite'y, walidacja; v2: undo, tekstury per kafelek, start gracza
+- E4 `WIP` Edytor map (format `maps/*.txt`) — v1 w `editor/` (PySide6, PR #6): kafelki + sprite'y,
+  walidacja, wybór tekstur z tabeli tekstur mapy; v2: undo, tekstury per kafelek, start gracza,
+  edytor pikseli sprite'ów (na bazie `helpers/generate_sprites.py`)
 - E5 `?` Wyświetlanie tekstu / HUD (zależne od decyzji w Wizji)
 
 ## F. Kierunek wizualny (referencja: demo BLOK — retro PS1, wnętrza lat 90.)
@@ -118,7 +140,8 @@ stołkami, boksy przy oknach, gablota z ciastami, ciepłe lampy).
 - F4 `?` Rekwizyty jako sprite'y (lada, stołki, boksy, gablota, szafa grająca) — oparte na
   D1 + D5.1; opcjonalnie sprite'y 8-kierunkowe dla dużych mebli.
   Kryterium: scena dinera z ≥ 10 rekwizytami, poprawne zasłanianie przez ściany.
-- F5 `?` Ściany o różnej wysokości (pole `Tile.height` już istnieje) — np. lada
+- F5 `?` Ściany o różnej wysokości (pole `Tile.height` już istnieje, ale `cast_ray`/`raycaster`
+  je ignorują — zgłoszone przez autora 2026-11-05) — np. lada
   „do pasa”, nad którą widać dalszą część sali. Duża zmiana w `cast_ray`/`raycaster`
   (promień nie kończy się na pierwszej ścianie).
   Kryterium: lada widoczna jako niska ściana, za nią widoczne tło.
@@ -135,3 +158,6 @@ Rytm: bloki tematyczne — kończymy blok, zanim zaczniemy następny.
 4. **D — silnik pod grę:** D3 → D2 → D1 (+ C2) → D5 → D4
 5. **E — systemy gry:** E1 → E2 → E3 → E4 (E5 po decyzji o tekście)
 6. **F — kierunek wizualny:** F1 (niezależne, można wcześniej) → F2 → F3 → F4 (po D1) → F5 → F6
+
+**Bieżąca kolejność (ustalona 2026-11-05):** sprite'y + ich koszt (D1 → D6) → generator sprite'ów /
+edytor pikseli w edytorze map (E4 v2) → F → E. A4/A5 — gdy autor je wybierze.

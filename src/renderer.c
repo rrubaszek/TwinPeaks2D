@@ -8,6 +8,10 @@
 
 double z_buffer[SCREEN_WIDTH]; // Store distance to walls for each column for texture mapping
 
+// Wall span per column [wall_start, wall_end), filled by raycaster, read by floor pass
+static int wall_start[SCREEN_WIDTH];
+static int wall_end[SCREEN_WIDTH];
+
 float compute_shade(double distance, float side_factor) {
     float brightness = 1.0f - (float)(distance / 10.0);
     if (brightness < 0.0f) brightness = 0.0f;
@@ -147,7 +151,14 @@ RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, co
 // TODO: Implement specific textures via texture manager
 void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
     Texture* wall_texture = texman_get(tm, g->wall_tex_id);
-    if (!wall_texture) return;
+    if (!wall_texture) {
+        // No walls drawn: floor/ceiling must cover every column
+        for (int i = 0; i < SCREEN_WIDTH; i++) {
+            wall_start[i] = SCREEN_HEIGHT / 2;
+            wall_end[i]   = SCREEN_HEIGHT / 2;
+        }
+        return;
+    }
 
     for (int i = 0; i < SCREEN_WIDTH; i++) {
 
@@ -182,6 +193,8 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
         int draw_end   = (SCREEN_HEIGHT + line_height) / 2;
         if (draw_start < 0) draw_start = 0;
         if (draw_end > SCREEN_HEIGHT) draw_end = SCREEN_HEIGHT;
+        wall_start[i] = draw_start;
+        wall_end[i]   = draw_end;
 
         float shade = compute_shade(dist, hit.side == 0 ? 0.9f : 0.7f);
         Uint32 mul = (Uint32)(shade * 256.0f);   // shade in [0, 1] -> [0, 256]
@@ -341,8 +354,12 @@ void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
         if (v >= H) v -= H;
 
         for (int x = 0; x < SCREEN_WIDTH; x++) {
-            Uint32 color = tex->pixels[(v >> 16) * tex->width + (u >> 16)];
-            row[x] = shade_mul(color, mul);
+            // Skip pixels the wall pass already drew (raycaster must run first)
+            bool visible = is_floor ? (y >= wall_end[x]) : (y < wall_start[x]);
+            if (visible) {
+                Uint32 color = tex->pixels[(v >> 16) * tex->width + (u >> 16)];
+                row[x] = shade_mul(color, mul);
+            }
 
             u += du; if (u >= W) u -= W; else if (u < 0) u += W;
             v += dv; if (v >= H) v -= H; else if (v < 0) v += H;

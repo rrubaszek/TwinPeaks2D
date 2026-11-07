@@ -163,3 +163,27 @@ Wnioski:
   ani na pojedynczy duży sprite. Kandydaci na dalsze kroki: zakres nieprzezroczystych wierszy
   per kolumna tekstury (liczony przy wczytaniu), krok stałoprzecinkowy bez clampa w pętli
   (jak B1/B2 dla ścian).
+
+## B1.4 overdraw + pomiar B2 (5ee219b → B1.4, 2026-11-07)
+
+Metoda: headless bench (bez okna i present), build -O2 -g, map.txt (sha1 d8508c8f),
+3 pozy: start (400,500,4.7; ściany ~1/2 ekranu), near (150,650,π; ściana na cały ekran),
+open (150,650,0; ściany ~1/3). ms: stara i nowa funkcja naprzemiennie w jednym przebiegu,
+obie kolejności, 6 serii × 1000 klatek (min). Ir: callgrind, 1 klatka.
+
+B2 (zapis kolumnami): kopia `raycaster` pisząca do bufora kolumnowego — Ir bez zmian,
+chybienia zapisu L1 16× mniej (482k → 30k w near), czas bez różnicy: ~0,1 ms przewagi ma
+zawsze funkcja wołana druga (efekt kolejności). Chybienia trafiają w L2/L3 (DLmw ≈ 0),
+store buffer je ukrywa. Wniosek: koszt zapisu kolumnami niemierzalny — bez zmian.
+
+B1.4: `raycaster` zapisuje zakres ściany per kolumna, podłoga/sufit pomija zakryte piksele
+(kolejność w game.c: ściany przed podłogą). Obraz identyczny bajt w bajt.
+
+| Poza  | Ir przed   | Ir po      | Ir     | ms min przed | ms min po | ms     |
+|-------|------------|------------|--------|--------------|-----------|--------|
+| start | 17 299 380 | 11 869 290 | −31%   | 1.84         | 1.31      | −29%   |
+| near  | 17 299 380 |  9 151 587 | −47%   | 1.88         | 1.12      | −41%   |
+| open  | 17 299 380 | 14 242 453 | −18%   | 1.86         | 1.51      | −19%   |
+
+Zostaje ~19 Ir/piksel na krok u/v + porównanie dla pikseli zakrytych (near: 9,15 M Ir
+przy zerze widocznych pikseli podłogi).
