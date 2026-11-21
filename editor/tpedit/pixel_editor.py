@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import importlib.util
+from collections import Counter
 from pathlib import Path
 
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
@@ -20,6 +21,8 @@ TEXTURES_DIR = PROJECT_ROOT / "maps" / "textures"
 MAX_SPRITE_SIDE = 256
 MAX_CANVAS_PX = 640    # longest side of the zoomed canvas; bigger images get a smaller zoom
 PALETTE_COLUMNS = 12
+IMAGE_COLORS_ALL = 64    # up to this many distinct colours (pixel art): all go to the palette
+IMAGE_COLORS_TOP = 10    # more (photo textures): only the most frequent ones
 
 
 def new_image(width: int, height: int) -> QImage:
@@ -120,14 +123,15 @@ def helper_palette() -> list[QColor]:
 
 
 def image_colors(img: QImage) -> list[QColor]:
-    """Opaque-ish colours used in the image, in order of first appearance."""
-    seen: dict[int, QColor] = {}
-    for y in range(img.height()):
-        for x in range(img.width()):
-            c = img.pixelColor(x, y)
-            if c.alpha() > 0:
-                seen.setdefault(c.rgba(), c)
-    return list(seen.values())
+    """Non-transparent colours used in the image: all of them in order of first appearance
+    if there are at most IMAGE_COLORS_ALL, else the IMAGE_COLORS_TOP most frequent."""
+    argb = img.convertToFormat(QImage.Format.Format_ARGB32)   # 4 bytes/px, rows have no padding
+    counts = Counter(v for v in memoryview(argb.constBits()).cast("I") if v >> 24)  # alpha > 0
+    if len(counts) <= IMAGE_COLORS_ALL:
+        values = list(counts)                                  # Counter keeps insertion order
+    else:
+        values = [v for v, _ in counts.most_common(IMAGE_COLORS_TOP)]
+    return [QColor.fromRgba(v) for v in values]
 
 
 def color_button(c: QColor, size: int = 20) -> QToolButton:

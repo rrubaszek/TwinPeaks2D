@@ -326,3 +326,21 @@ def test_pixel_canvas_large_image_zoom(app):
     assert PixelCanvas(new_image(64, 32)).zoom == 10     # 640 // 64
     assert PixelCanvas(new_image(16, 16)).zoom == 20     # small sprites keep the max zoom
     assert not c.grab().isNull()                         # paints without the per-pixel loop
+
+
+def test_image_colors_limit(app):
+    from tpedit.pixel_editor import IMAGE_COLORS_TOP, image_colors, new_image
+    img = new_image(20, 10)
+    img.setPixelColor(5, 5, QColor(9, 9, 9))
+    img.setPixelColor(0, 0, QColor(1, 2, 3, 128))
+    assert [c.getRgb() for c in image_colors(img)] == [(1, 2, 3, 128), (9, 9, 9, 255)]  # first seen
+
+    for x in range(20):                                   # 200 distinct colours, (0,0,x) most common
+        for y in range(10):
+            img.setPixelColor(x, y, QColor(x, y, 50))
+    for x in range(IMAGE_COLORS_TOP):
+        for y in range(x + 1):
+            img.setPixelColor(x, y, QColor(0, 0, x))
+    got = image_colors(img)
+    assert len(got) == IMAGE_COLORS_TOP
+    assert got[0].getRgb() == (0, 0, IMAGE_COLORS_TOP - 1, 255)          # most frequent first
