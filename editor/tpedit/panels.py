@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDia
 from tpmap.model import EXIT_COUNT, NO_EXIT, MapData, Sprite, SpriteType, TileType
 from tpmap.txt_format import MAX_EXIT_NAME, MAX_TEXTURE_NAME, Issue
 
-from .canvas import SPRITE_COLORS, TILE_COLORS, Tool, lowwall_height
+from .canvas import SPRITE_COLORS, TILE_COLORS, Tool, lowwall_height, sprite_below_top
 
 MAX_MAP_SIDE = 256
 
@@ -111,6 +111,11 @@ class ToolPanel(QWidget):
             lambda: self.wall_texture_changed.emit(self.wall_texture.currentData()))
         self.buttons[1].setChecked(True)
 
+    def add_texture(self, name: str) -> None:
+        """New file in maps/textures: make it selectable."""
+        if self.wall_texture.findData(name) < 0:
+            self.wall_texture.addItem(name, name)
+
     def _on_toggled(self, idx: int, checked: bool) -> None:
         if checked:
             _, _, tool, tile_type = self.TOOLS[idx]
@@ -200,6 +205,12 @@ class MapPanel(QWidget):
         m.exits = [e.text() or NO_EXIT for e in self.exit_edits]
         self.changed.emit()
 
+    def add_texture(self, name: str) -> None:
+        """New file in maps/textures: make it selectable (does not change the current values)."""
+        for combo in (self.wall_tex, self.floor_tex, self.ceiling_tex):
+            if combo.findText(name) < 0:
+                combo.addItem(name)
+
     def _browse_exit(self, edit: QLineEdit) -> None:
         path, _ = QFileDialog.getOpenFileName(self, "Target map", str(self.project_root / "maps"),
                                               "Maps (*.txt)")
@@ -220,11 +231,13 @@ class MapPanel(QWidget):
 
 class SpritePanel(QWidget):
     sprite_edited = Signal(object)   # Sprite
+    edit_texture_requested = Signal(str)   # texture file name, "" = none chosen
 
     def __init__(self, textures_dir: Path, parent=None):
         super().__init__(parent)
         self.sprite: Sprite | None = None
         self.map: MapData | None = None  # owns the texture table the sprite indexes
+        self.textures_dir = textures_dir
         form = QFormLayout(self)
         self.info = QLabel("No sprite selected")
         form.addRow(self.info)
@@ -236,6 +249,8 @@ class SpritePanel(QWidget):
         self.texture = QComboBox()  # not editable: typing would add partial names to the table
         self.texture.addItems(texture_names(textures_dir))
         self.texture.setToolTip("Picked texture is added to the map's texture table if missing")
+        self.edit_texture = QPushButton("Edit…")
+        self.edit_texture.setToolTip("Open this texture in the sprite pixel editor")
         self.scale = self._dspin(0.01, 10, 0.05)
         self.scale.setToolTip("1.0 = person height, 0.3 = mug")
         self.collision_r = self._dspin(0, 5, 0.05)
@@ -244,22 +259,31 @@ class SpritePanel(QWidget):
         self.z.setToolTip("Base height in wall units; 0.5 = on top of a 0.5 counter")
         self.on_tile_top = QPushButton("On tile top")
         self.on_tile_top.setToolTip("Set height to the low wall under the sprite (0 elsewhere)")
+        self.on_sprite_below = QPushButton("On sprite below")
+        self.on_sprite_below.setToolTip("Set height to the top (z + scale) of the sprite under this one")
 
         form.addRow("Type", self.type)
         form.addRow("X (tiles)", self.x)
         form.addRow("Y (tiles)", self.y)
-        form.addRow("Texture", self.texture)
+        tex_row = QHBoxLayout()
+        tex_row.addWidget(self.texture, 1)
+        tex_row.addWidget(self.edit_texture)
+        form.addRow("Texture", tex_row)
         form.addRow("Scale", self.scale)
         form.addRow("Collision radius", self.collision_r)
         z_row = QHBoxLayout()
         z_row.addWidget(self.z)
         z_row.addWidget(self.on_tile_top)
+        z_row.addWidget(self.on_sprite_below)
         form.addRow("Height (z)", z_row)
 
         self.type.currentIndexChanged.connect(self._commit)
         for w in (self.x, self.y, self.scale, self.collision_r, self.z):
             w.valueChanged.connect(self._commit)
         self.on_tile_top.clicked.connect(self.put_on_tile_top)
+        self.on_sprite_below.clicked.connect(self.put_on_sprite_below)
+        self.edit_texture.clicked.connect(
+            lambda: self.edit_texture_requested.emit(self.texture.currentText()))
         self.texture.activated.connect(lambda _: self.choose_texture(self.texture.currentText()))
         self.set_sprite(None)
 
@@ -283,6 +307,11 @@ class SpritePanel(QWidget):
         s.texture_id = m.texture_index(name)
         self.sprite_edited.emit(s)
 
+    def add_texture(self, name: str) -> None:
+        """New file in maps/textures: make it selectable."""
+        if self.texture.findText(name) < 0:
+            self.texture.addItem(name)
+
     def put_on_tile_top(self) -> None:
         """z = height of the low wall under the selected sprite, 0 if it stands on anything else."""
         s, m = self.sprite, self.map
@@ -290,10 +319,17 @@ class SpritePanel(QWidget):
             return
         self.z.setValue(lowwall_height(m, s.x, s.y))   # valueChanged -> _commit
 
+    def put_on_sprite_below(self) -> None:
+        """z = top of the sprite this one stands on, 0 if none."""
+        s, m = self.sprite, self.map
+        if s is None or m is None:
+            return
+        self.z.setValue(sprite_below_top(m, s, self.textures_dir))   # valueChanged -> _commit
+
     def set_sprite(self, s: Sprite | None) -> None:
         self.sprite = None  # block _commit while filling widgets
         for w in (self.type, self.x, self.y, self.texture, self.scale, self.collision_r,
-                  self.z, self.on_tile_top):
+                  self.z, self.on_tile_top, self.on_sprite_below, self.edit_texture):
             w.setEnabled(s is not None)
         if s is not None:
             self.info.setText("Selected sprite")
