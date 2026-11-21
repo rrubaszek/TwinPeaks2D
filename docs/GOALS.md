@@ -128,8 +128,10 @@ Kryterium: zero alokacji na stercie w pętli klatki.
 - E4 `WIP` Edytor map (format `maps/*.txt`) — v1 w `editor/` (PySide6, PR #6): kafelki + sprite'y,
   walidacja, wybór tekstur z tabeli tekstur mapy; tekstury kafelków (miniatury na siatce),
   wysokość `z` sprite'ów + „On tile top” (sprite postawiony na niskiej ścianie dostaje jej wysokość).
-  v2: edytor pikseli sprite'ów (na bazie `helpers/generate_sprites.py`), „On sprite below”
-  (z = wierzch sprite'a pod spodem), undo, start gracza
+  v2 (gałąź `editor-sprite-tools`): `DONE` edytor pikseli sprite'ów (`editor/tpedit/pixel_editor.py`:
+  PNG z alfą, paleta z `helpers/generate_sprites.py`, Tools menu + „Edit…” w panelu Sprite),
+  `DONE` „On sprite below” (z = wierzch najwyższego sprite'a w promieniu 0,25 kafelka, bez
+  przezroczystych górnych wierszy tekstury). `TODO`: undo, start gracza
 - E5 `?` Wyświetlanie tekstu / HUD (zależne od decyzji w Wizji)
 
 ## F. Kierunek wizualny (referencja: demo BLOK — retro PS1, wnętrza lat 90.)
@@ -167,5 +169,5 @@ Rytm: bloki tematyczne — kończymy blok, zanim zaczniemy następny.
 5. **E — systemy gry:** E1 → E2 → E3 → E4 (E5 po decyzji o tekście)
 6. **F — kierunek wizualny:** F1 (niezależne, można wcześniej) → F2 → F3 → F4 (po D1) → F5 → F6
 
-**Bieżąca kolejność (aktualizacja 2026-11-07):** D2, F5, D7 zrobione → narzędzia sprite'ów
-w edytorze (E4 v2, osobna gałąź) → F → E. D6 (koszt sprite'ów) później; A4/A5 — gdy autor je wybierze.
+**Bieżąca kolejność (aktualizacja 2026-11-21):** D2, F5, D7 zrobione; narzędzia sprite'ów
+w edytorze (E4 v2) zrobione → F → E. D6 (koszt sprite'ów) później; A4/A5 — gdy autor je wybierze.

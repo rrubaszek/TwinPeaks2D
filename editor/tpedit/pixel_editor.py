@@ -6,7 +6,7 @@ import importlib.util
 from pathlib import Path
 
 from PySide6.QtCore import QPoint, QRect, Qt, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QColorDialog, QDialog, QDialogButtonBox, QFileDialog, QFormLayout,
                                QGridLayout, QHBoxLayout, QLabel, QMessageBox, QPushButton,
                                QScrollArea, QSpinBox, QToolButton, QVBoxLayout, QWidget)
@@ -18,6 +18,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]       # same as main_window.P
 SPRITE_HELPER = PROJECT_ROOT / "helpers" / "generate_sprites.py"
 TEXTURES_DIR = PROJECT_ROOT / "maps" / "textures"
 MAX_SPRITE_SIDE = 256
+MAX_CANVAS_PX = 640    # longest side of the zoomed canvas; bigger images get a smaller zoom
 PALETTE_COLUMNS = 12
 
 
@@ -33,7 +34,7 @@ class PixelCanvas(QWidget):
 
     def __init__(self, image: QImage | None = None, zoom: int = 20, parent=None):
         super().__init__(parent)
-        self.zoom = zoom
+        self.max_zoom = zoom                 # small sprites; large images zoom less (set_image)
         self.color = QColor(0, 0, 0)
         self._stroke: QColor | None = None   # colour of the stroke in progress
         self._last: QPoint | None = None     # last painted pixel of the stroke
@@ -42,8 +43,22 @@ class PixelCanvas(QWidget):
     def set_image(self, image: QImage) -> None:
         # Non-premultiplied, so colours of half-transparent pixels survive a save
         self.image = image.convertToFormat(QImage.Format.Format_ARGB32)
+        side = max(self.image.width(), self.image.height())
+        self.zoom = max(1, min(self.max_zoom, MAX_CANVAS_PX // side))
+        self._checker = self._checker_brush(self.zoom)
         self.setFixedSize(self.image.width() * self.zoom, self.image.height() * self.zoom)
         self.update()
+
+    @staticmethod
+    def _checker_brush(z: int) -> QBrush:
+        """2x2-cell checkerboard tile; one fillRect paints the whole background."""
+        tile = QPixmap(2 * z, 2 * z)
+        tile.fill(CHECKER[0])
+        qp = QPainter(tile)
+        qp.fillRect(z, 0, z, z, CHECKER[1])
+        qp.fillRect(0, z, z, z, CHECKER[1])
+        qp.end()
+        return QBrush(tile)
 
     def pixel_at(self, pos: QPoint) -> QPoint | None:
         p = QPoint(pos.x() // self.zoom, pos.y() // self.zoom)
@@ -83,9 +98,7 @@ class PixelCanvas(QWidget):
     def paintEvent(self, event):
         qp = QPainter(self)
         z, w, h = self.zoom, self.image.width(), self.image.height()
-        for y in range(h):
-            for x in range(w):
-                qp.fillRect(x * z, y * z, z, z, CHECKER[(x + y) & 1])
+        qp.fillRect(QRect(0, 0, w * z, h * z), self._checker)
         qp.drawImage(QRect(0, 0, w * z, h * z), self.image)   # no smoothing hint: hard pixels
         if z >= 6:
             qp.setPen(QPen(GRID, 1))

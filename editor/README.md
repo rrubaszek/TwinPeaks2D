@@ -19,6 +19,7 @@ Tests (offscreen, no window): `.venv/bin/python -m pytest editor/tests`
 | Place sprite (`P`) | LMB place (snaps to ½ tile, Alt = free) or select, RMB delete |
 | Select / move (`S`) | drag sprites, rubber-band select, Del deletes |
 | View | wheel zoom, middle-drag pan, Ctrl+0 fit |
+| Sprite pixel editor (Tools menu, or **Edit…** in the Sprite panel) | LMB paint, RMB transparent, drag draws a line |
 
 **Wall texture** (Tools panel): texture for painted walls / low walls. `(map default)` = the map's
 wall texture; another file is added to the map's texture table on first paint. Tiles with their
@@ -27,8 +28,17 @@ own texture show a thumbnail on the grid; the status bar shows the texture under
 The **Map** panel edits size, tile size, default textures and the 4 exits; the **Sprite** panel
 edits the selected sprite, including its **Height (z)** — base height in wall units. A sprite
 placed on a low wall gets the wall's height automatically; **On tile top** sets it again after
-moving. **Problems** shows live validation: errors (the game would reject the
+moving; **On sprite below** sets it to the top of the highest sprite within 0.25 tiles (transparent
+top rows of its texture are not counted, e.g. a pie on a stool). A click on an existing sprite
+selects it, so stacks are built by dragging one sprite onto another. **Problems** shows live validation: errors (the game would reject the
 map) block saving, warnings ask for confirmation.
+
+## Sprite pixel editor
+Paints RGBA PNG sprites at 20× zoom (checkerboard = transparent). The palette is `PALETTE` from
+`helpers/generate_sprites.py` + **Custom…** colours (with alpha) + colours already in the image.
+New (up to 256 × 256), Open, Save / Save as (default `maps/textures/sprite_<name>.png`). A file saved
+into `maps/textures/` appears in the texture lists at once; tile thumbnails and sprite heights use
+the new version. Bottom row of the image = what stands on the floor in the game.
 
 ## Format limits enforced (from the C code)
 - texture names: no spaces, max 63 chars, files from `maps/textures/`
@@ -39,4 +49,5 @@ map) block saving, warnings ask for confirmation.
 
 ## Code
 - `tpmap/` model + file format, no GUI dependency (`model.py`, `txt_format.py`)
-- `tpedit/` GUI: `canvas.py` (grid, tools), `panels.py` (docks, dialogs), `main_window.py`
+- `tpedit/` GUI: `canvas.py` (grid, tools), `panels.py` (docks, dialogs), `main_window.py`,
+  `pixel_editor.py` (sprite pixel editor)

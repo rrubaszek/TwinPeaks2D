@@ -317,3 +317,12 @@ def test_texture_saved_updates_editor(win, tmp_path, monkeypatch):
 
     win._texture_saved(tmp_path / "elsewhere" / "other.png")      # outside maps/textures
     assert win.sprite_panel.texture.findText("other.png") < 0
+
+
+def test_pixel_canvas_large_image_zoom(app):
+    from tpedit.pixel_editor import PixelCanvas, new_image
+    c = PixelCanvas(new_image(512, 512))
+    assert c.zoom == 1 and c.width() == 512              # 640 // 512 = 1
+    assert PixelCanvas(new_image(64, 32)).zoom == 10     # 640 // 64
+    assert PixelCanvas(new_image(16, 16)).zoom == 20     # small sprites keep the max zoom
+    assert not c.grab().isNull()                         # paints without the per-pixel loop
