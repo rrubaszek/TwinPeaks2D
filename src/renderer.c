@@ -441,9 +441,15 @@ void render_sprites(CameraView* view, TextureManager* tm, const Grid* g) {
 }
 
 // TODO: Implement specific textures via texture manager
+// Floor or ceiling texture of tile (tx, ty) (F2); the map default outside the map
+static const Texture* plane_texture(TextureManager* tm, const Grid* g, int tx, int ty, bool is_floor) {
+    if (tx < 0 || tx >= g->w || ty < 0 || ty >= g->h)
+        return texman_get(tm, is_floor ? g->floor_tex_id : g->ceiling_tex_id);
+    const Tile* t = &g->map[ty][tx];
+    return texman_get(tm, is_floor ? t->floor_tex_id : t->ceiling_tex_id);
+}
+
 void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
-    Texture* floor_tex = texman_get(tm, g->floor_tex_id);
-    Texture* ceiling_tex = texman_get(tm, g->ceiling_tex_id);
 
     double rayDirX0 = view->dirX - view->planeX;
     double rayDirY0 = view->dirY - view->planeY;
@@ -467,36 +473,40 @@ void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
         double floorX = view->posX + rowDistance * rayDirX0;
         double floorY = view->posY + rowDistance * rayDirY0;
 
-        Texture* tex = is_floor ? floor_tex : ceiling_tex;
         Uint32* row = &framebuffer[y * SCREEN_WIDTH];   // y in [0, SCREEN_HEIGHT), no bounds check needed
 
-        if (tex == NULL) {
-            for (int x = 0; x < SCREEN_WIDTH; x++)
-                row[x] = shade_mul(0xFF333333, mul);
-            continue;
-        }
+        // World position in 32.32 fixed point: integer part = tile, fraction = place in the tile.
+        // 32 fraction bits keep the drift over a row far below one texel.
+        const double ONE = 4294967296.0;
+        int64_t fx  = (int64_t)(floorX * ONE);
+        int64_t fy  = (int64_t)(floorY * ONE);
+        int64_t dfx = (int64_t)(floorStepX * ONE);
+        int64_t dfy = (int64_t)(floorStepY * ONE);
 
-        // Texture coords in 16.16 fixed point, wrapped to [0, size) each step
-        const int32_t W = tex->width  << 16;
-        const int32_t H = tex->height << 16;
+        // Texture looked up only when the tile changes (a few times per row)
+        int last_tx = 0, last_ty = 0;
+        const Texture* tex = NULL;
+        bool first = true;
 
-        int32_t u  = (int32_t)((floorX - floor(floorX)) * W);
-        int32_t v  = (int32_t)((floorY - floor(floorY)) * H);
-        int32_t du = (int32_t)(floorStepX * W);   // |step| < 1 tile, one wrap suffices
-        int32_t dv = (int32_t)(floorStepY * H);
-        if (u >= W) u -= W;                       // guard against rounding to exactly 1.0
-        if (v >= H) v -= H;
-
-        for (int x = 0; x < SCREEN_WIDTH; x++) {
+        for (int x = 0; x < SCREEN_WIDTH; x++, fx += dfx, fy += dfy) {
             // Skip pixels the wall pass already drew (raycaster must run first)
             bool visible = is_floor ? (y >= wall_end[x]) : (y < wall_start[x]);
-            if (visible) {
-                Uint32 color = tex->pixels[(v >> 16) * tex->width + (u >> 16)];
-                row[x] = shade_mul(color, mul);
-            }
+            if (!visible) continue;
 
-            u += du; if (u >= W) u -= W; else if (u < 0) u += W;
-            v += dv; if (v >= H) v -= H; else if (v < 0) v += H;
+            int tx = (int)(fx >> 32), ty = (int)(fy >> 32);   // arithmetic shift: floor
+            if (first || tx != last_tx || ty != last_ty) {
+                tex = plane_texture(tm, g, tx, ty, is_floor);
+                last_tx = tx;
+                last_ty = ty;
+                first = false;
+            }
+            if (tex == NULL) {
+                row[x] = shade_mul(0xFF333333, mul);
+                continue;
+            }
+            Uint32 u = (Uint32)(((uint64_t)(uint32_t)fx * (uint32_t)tex->width) >> 32);
+            Uint32 v = (Uint32)(((uint64_t)(uint32_t)fy * (uint32_t)tex->height) >> 32);
+            row[x] = shade_mul(tex->pixels[v * tex->width + u], mul);
         }
     }
 }

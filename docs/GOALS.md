@@ -12,7 +12,7 @@
   (otwarte drzwi, zabrane przedmioty, odbyte rozmowy).
 - **Świat:** kilkanaście+ map → potrzebny prosty edytor map.
 - **Platforma:** tylko Linux (Arch) autora; przenośność builda nie jest celem.
-- **Budżet wydajności:** `?` — ustalany po pomiarze bazowym B0 (800×600).
+- **Budżet wydajności:** 16,6 ms na klatkę (60 FPS, jak ogranicznik `FPS`), 800×600 — decyzja B0.5 z 2026-11-21.
 - **Cel edukacyjny:** wszystko po trochu — poprawność C i pamięć, wydajność, grafika.
 - `?` Sposób przekazywania tekstu graczowi (opisy przedmiotów, dialogi) — do decyzji;
   obecnie brak renderowania tekstu/HUD.
@@ -52,7 +52,7 @@ Kryterium: mapa z dwoma wyjściami prowadzi do dwóch różnych map.
 
 ## B. Wydajność obliczeniowa
 
-### B0 `DONE` (budżet B0.5 — do decyzji) Pomiar bazowy (warunek wstępny dla B1–B4)
+### B0 `DONE` (budżet B0.5: 16,6 ms) Pomiar bazowy (warunek wstępny dla B1–B4)
 Instrumentacja czasu klatki i sekcji (`/perf-measure`), zapisany wynik bazowy.
 Kryterium: tabela czasów w `docs/perf-log.md` dla aktualnego commita.
 
@@ -137,12 +137,16 @@ Kryterium: zero alokacji na stercie w pętli klatki.
 ## F. Kierunek wizualny (referencja: demo BLOK — retro PS1, wnętrza lat 90.)
 Cel przykładowy: wnętrze Double R Diner (szachownica na podłodze, boazeria, lada ze
 stołkami, boksy przy oknach, gablota z ciastami, ciepłe lampy).
-- F1 `?` Post-process „retro”: renderowanie w niższej rozdzielczości wewnętrznej +
-  powiększenie bez wygładzania, redukcja liczby kolorów na kanał, dithering uporządkowany
-  (Bayer). Parametry regulowane stałymi (jak w BLOK: pikselizacja, precyzja koloru).
+- F1 `DONE` Post-process „retro” (`src/postfx.c`, ostatni krok klatki): pikselizacja blokami
+  `POSTFX_PIXEL` (kolor środka bloku), `POSTFX_LEVELS` poziomów na kanał, dithering Bayer 4×4
+  w rozdzielczości bloków (tablica LUT 16×256). Wybrany wariant: przebieg po gotowym obrazie
+  800×600, nie niższa rozdzielczość wewnętrzna (ta wymagałaby zamiany ~50 stałych ekranu na
+  zmienne). Klawisze: F2 wł./wył., F3 rozmiar bloku 1–4, F4 poziomy 256/32/16/8/4.
   Kryterium: efekt włączany/wyłączany klawiszem, czas klatki w budżecie B0.5.
-- F2 `?` Podłoga i sufit per kafelek (dziś jedna tekstura na mapę: `floor_tex_id`,
-  `ceiling_tex_id`) — wymaga zmiany formatu mapy i edytora (E4).
+- F2 `DONE` Podłoga i sufit per kafelek — opcjonalne pola kafelka `type:tex:height[:floor:ceiling]`
+  (`docs/map-format.md`), `Tile.floor_tex_id/ceiling_tex_id`; `render_floor_ceiling` liczy pozycję
+  w świecie w stałym przecinku 32.32 (kafelek = część całkowita) i zmienia teksturę tylko na
+  granicy kafelka. Edytor: narzędzia Floor texture [5] / Ceiling texture [6].
   Kryterium: mapa z dwoma rodzajami podłogi (np. szachownica w dinerze, deski w kuchni).
 - F3 `?` Oświetlenie: poziom światła per kafelek + mgła w kolor (nie tylko przyciemnianie).
   Kryterium: ciemny kąt i jasna strefa pod lampą na jednej mapie.

@@ -95,13 +95,15 @@ def parse_map(text: str) -> MapData:
             tok = t.next(f"tile at row {y}, col {x}")
             parts = tok.split(":")
             try:
-                if len(parts) != 3:
+                if not 3 <= len(parts) <= 5:       # type:texture:height[:floor[:ceiling]] (F2)
                     raise ValueError
                 tile_type, tex_id, h = int(parts[0]), int(parts[1]), float(parts[2])
                 tile_type = TileType(tile_type)
+                floor_tex = int(parts[3]) if len(parts) > 3 else 0
+                ceiling_tex = int(parts[4]) if len(parts) > 4 else 0
             except ValueError:
                 raise MapFormatError(f"invalid tile '{tok}' at row {y}, col {x}") from None
-            row.append(Tile(tile_type, tex_id, h))
+            row.append(Tile(tile_type, tex_id, h, floor_tex, ceiling_tex))
         tiles.append(row)
 
     exits = [t.next(f"exit {i}") for i in range(EXIT_COUNT)]
@@ -133,12 +135,20 @@ def _num(v: float) -> str:
     return f"{v:.1f}" if v.is_integer() else repr(v)
 
 
+def format_tile(t: Tile) -> str:
+    """type:texture:height, plus :floor:ceiling only when one of them is not the map default."""
+    tok = f"{int(t.type)}:{t.texture_id}:{_num(t.height)}"
+    if t.floor_tex or t.ceiling_tex:
+        tok += f":{t.floor_tex}:{t.ceiling_tex}"
+    return tok
+
+
 def format_map(m: MapData) -> str:
     lines = [f"{m.width} {m.height} {m.tile_size}",
              f"{m.wall_texture} {m.floor_texture} {m.ceiling_texture}",
              " ".join([str(len(m.textures))] + m.textures)]
     for row in m.tiles:
-        lines.append(" ".join(f"{int(t.type)}:{t.texture_id}:{_num(t.height)}" for t in row))
+        lines.append(" ".join(format_tile(t) for t in row))
     lines.append(" ".join(m.exits))
     lines.append(str(len(m.sprites)))
     for s in m.sprites:
@@ -211,9 +221,11 @@ def validate(m: MapData, textures_dir: Path | None = None) -> list[Issue]:
 
     for y, row in enumerate(m.tiles):
         for x, t in enumerate(row):
-            if not 0 <= t.texture_id <= len(m.textures):
-                issues.append(Issue(True, f"tile at row {y}, col {x}: texture {t.texture_id} "
-                                          "not in texture table"))
+            for what, tex in (("texture", t.texture_id), ("floor texture", t.floor_tex),
+                              ("ceiling texture", t.ceiling_tex)):
+                if not 0 <= tex <= len(m.textures):
+                    issues.append(Issue(True, f"tile at row {y}, col {x}: {what} {tex} "
+                                              "not in texture table"))
 
     has_exit_tile = any(t.type == TileType.EXIT for row in m.tiles for t in row)
     has_exit_target = any(e != NO_EXIT for e in m.exits)

@@ -47,16 +47,18 @@ Doom-style, first-person game w C11 z użyciem SDL.
 | `src/game.c` | `main`, pętla gry, init/cleanup SDL |
 | `src/camera.c` | ruch, kolizje, obsługa wyjść między mapami (`handle_exit`) |
 | `src/renderer.c` | DDA (`cast_ray`), ściany (`raycaster`), podłoga/sufit, niskie ściany (`render_low_walls`), sprite'y, cieniowanie |
+| `src/postfx.c` | post-process „retro” (F1): pikselizacja, mniej kolorów, dithering Bayer; klawisze F2–F4 |
 | `src/framebuffer.c` | globalny framebuffer, `put_pixel`, `clear_framebuffer` |
 | `src/map.c` | parser plików `maps/*.txt` → `Grid`, kafelki |
 | `src/texture.c`, `src/texturemanager.c` | ładowanie PNG do `Uint32*`, cache tekstur po id |
 | `include/constants.h` | rozdzielczość, FPS, FOV, limity |
 
 Pętla klatki: input → `move` → `camera_get_view` → `clear_framebuffer` →
-`raycaster` → `render_floor_ceiling` → `render_low_walls` → `render_sprites` → upload
+`raycaster` → `render_floor_ceiling` → `render_low_walls` → `render_sprites` → `postfx_apply` → upload
 tekstury → present → ogranicznik klatki (`SDL_Delay` na resztę budżetu).
 Kolejność jest wymagana: `raycaster` zapisuje zakres pełnej ściany i niskie ściany per kolumna,
-podłoga pomija zakres pełnej ściany, niskie ściany i sprite'y rysują się na podłodze.
+podłoga pomija zakres pełnej ściany, niskie ściany i sprite'y rysują się na podłodze;
+post-process działa na gotowym obrazie, więc jest ostatni.
 
 **Ścieżka gorąca** (wykonywana per piksel / per kolumna, każda klatka):
 `render_floor_ceiling` (pętla 800×600), wewnętrzna pętla `raycaster`, `put_pixel`,

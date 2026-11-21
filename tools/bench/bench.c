@@ -6,6 +6,7 @@
 //   bench png DIR      saves each pose as DIR/<name>.png (byte-identical before/after checks)
 //
 // Map: maps/map.txt, or the path in $BENCH_MAP. Run from the repo root (textures are relative).
+// Post-fx (F1) in frames: off unless $BENCH_POSTFX is set ("time" always measures it, enabled).
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -15,6 +16,7 @@
 #include <camera.h>
 #include <renderer.h>
 #include <framebuffer.h>
+#include <postfx.h>
 
 typedef struct { const char* name; double x, y, a; } Pose;   // world pixels, radians
 static const Pose poses[] = {
@@ -34,12 +36,15 @@ static const Pose poses[] = {
 };
 enum { NPOSES = sizeof poses / sizeof poses[0] };
 
+static PostFx postfx;
+
 static void frame(CameraView* v, TextureManager* tm, Grid* g) {
     clear_framebuffer(0x00000000);
     raycaster(v, tm, g);            // walls first: records wall spans and low walls
     render_floor_ceiling(v, tm, g);
     render_low_walls(v, tm, g);
     render_sprites(v, tm, g);
+    postfx_apply(&postfx);          // last, on the finished image
 }
 
 static double now_ms(void) {
@@ -53,6 +58,10 @@ int main(int argc, char** argv) {
     const char* map_path = getenv("BENCH_MAP") ? getenv("BENCH_MAP") : "maps/map.txt";
     Grid* g = tm ? read_map_from_file(map_path, tm) : NULL;
     if (!g) return 1;
+    postfx_init(&postfx);
+    postfx.enabled = getenv("BENCH_POSTFX") != NULL;
+    PostFx postfx_on = postfx;
+    postfx_on.enabled = true;
 
     for (int p = 0; p < NPOSES; p++) {
         Camera cam = { .x = poses[p].x, .y = poses[p].y, .angle = poses[p].a };
@@ -71,7 +80,7 @@ int main(int argc, char** argv) {
         } else {
             int frames = argc > 2 ? atoi(argv[2]) : 300;
             if (frames < 1) frames = 1;
-            const char* names[] = { "clear", "raycaster", "floor_ceiling", "low_walls", "sprites" };
+            const char* names[] = { "clear", "raycaster", "floor_ceiling", "low_walls", "sprites", "postfx" };
             enum { NSEC = sizeof names / sizeof names[0] };
             double sum[NSEC] = {0}, mn[NSEC];
             for (int k = 0; k < NSEC; k++) mn[k] = 1e9;
@@ -82,7 +91,8 @@ int main(int argc, char** argv) {
                 t[2] = now_ms(); render_floor_ceiling(&v, tm, g);
                 t[3] = now_ms(); render_low_walls(&v, tm, g);
                 t[4] = now_ms(); render_sprites(&v, tm, g);
-                t[5] = now_ms();
+                t[5] = now_ms(); postfx_apply(&postfx_on);
+                t[6] = now_ms();
                 for (int k = 0; k < NSEC; k++) {
                     double d = t[k + 1] - t[k];
                     sum[k] += d;

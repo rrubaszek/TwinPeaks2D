@@ -80,21 +80,28 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
             goto fail;
         }
         for (int j = 0; j < g->w; j++) {
-            int type, tex_id;
+            // type:texture:height[:floor:ceiling] - the last two are optional (F2)
+            char tok[64];
+            int type, tex_id, floor_id = 0, ceil_id = 0;
             float height;
-            if (fscanf(fptr, "%d:%d:%f", &type, &tex_id, &height) != 3) {
+            if (fscanf(fptr, "%63s", tok) != 1
+                || sscanf(tok, "%d:%d:%f:%d:%d", &type, &tex_id, &height, &floor_id, &ceil_id) < 3) {
                 fprintf(stderr, "%s: invalid tile at row %d, col %d\n", filename, i, j);
                 goto fail;
             }
-            // Tile texture: 0 = map default wall texture, k >= 1 = texture table entry k-1
-            if (tex_id < 0 || tex_id > tex_count) {
-                fprintf(stderr, "%s: tile at row %d, col %d: texture %d not in table\n",
-                        filename, i, j, tex_id);
+            // Textures: 0 = map default (wall / floor / ceiling), k >= 1 = texture table entry k-1
+            if (tex_id < 0 || tex_id > tex_count || floor_id < 0 || floor_id > tex_count
+                || ceil_id < 0 || ceil_id > tex_count) {
+                fprintf(stderr, "%s: tile at row %d, col %d: texture not in table (%s)\n",
+                        filename, i, j, tok);
                 goto fail;
             }
-            g->map[i][j].type = (TileType)type;
-            g->map[i][j].texture_id = tex_id == 0 ? g->wall_tex_id : tex_ids[tex_id - 1];
-            g->map[i][j].height = height;
+            Tile* t = &g->map[i][j];
+            t->type = (TileType)type;
+            t->texture_id = tex_id == 0 ? g->wall_tex_id : tex_ids[tex_id - 1];
+            t->height = height;
+            t->floor_tex_id = floor_id == 0 ? g->floor_tex_id : tex_ids[floor_id - 1];
+            t->ceiling_tex_id = ceil_id == 0 ? g->ceiling_tex_id : tex_ids[ceil_id - 1];
         }
     }
 

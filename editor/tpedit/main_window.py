@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (QDockWidget, QFileDialog, QLabel, QMainWindow, QM
                                QScrollArea)
 
 from tpmap.model import TEXTURED_TILES, MapData
-from tpmap.txt_format import MapFormatError, format_map, load_map, validate
+from tpmap.txt_format import MapFormatError, format_map, format_tile, load_map, validate
 
 from .canvas import MapCanvas
 from .panels import IssuesPanel, MapPanel, NewMapDialog, SpritePanel, ToolPanel
@@ -116,6 +116,7 @@ class MainWindow(QMainWindow):
         self.tools.tool_changed.connect(self.canvas.set_tool)
         self.tools.sprite_type_changed.connect(lambda st: setattr(self.canvas, "sprite_type", st))
         self.tools.wall_texture_changed.connect(lambda n: setattr(self.canvas, "paint_texture", n))
+        self.tools.plane_texture_changed.connect(lambda n: setattr(self.canvas, "plane_texture", n))
         self.canvas.changed.connect(self._mark_dirty)
         self.canvas.hover.connect(self._show_hover)
         self.canvas.sprite_selected.connect(self.sprite_panel.set_sprite)
@@ -160,8 +161,10 @@ class MainWindow(QMainWindow):
         if t.type in TEXTURED_TILES:
             tex = m.textures[t.texture_id - 1] if 0 < t.texture_id <= len(m.textures) else \
                   f"{m.wall_texture} (default)" if t.texture_id == 0 else "invalid texture"
+        planes = "".join(f"  {what}: {m.textures[k - 1] if 0 < k <= len(m.textures) else 'invalid'}"
+                         for what, k in (("floor", t.floor_tex), ("ceiling", t.ceiling_tex)) if k)
         self.status.setText(f"Tile ({x}, {y})  {t.type.name.lower()}  "
-                            f"[{int(t.type)}:{t.texture_id}:{t.height}]  {tex}")
+                            f"[{format_tile(t)}]  {tex}{planes}")
 
     def _sprite_moved(self, s) -> None:
         if self.sprite_panel.sprite is s:

@@ -9,6 +9,7 @@
 #include <camera.h>
 #include <constants.h>
 #include <renderer.h>
+#include <postfx.h>
 #include <framebuffer.h>
 #include <texture.h>
 #include <profiler.h>
@@ -39,6 +40,8 @@ int main(void) {
 
     SDL_Event event;
     CameraView view;
+    PostFx postfx;
+    postfx_init(&postfx);
     SDL_Texture* screen_texture = SDL_CreateTexture(
         game.renderer,
         SDL_PIXELFORMAT_ARGB8888,
@@ -72,6 +75,9 @@ int main(void) {
                     }
                     if (event.key.keysym.sym == SDLK_F11 && !event.key.repeat) {
                         toggle_fullscreen(&game);
+                    }
+                    if (!event.key.repeat) {
+                        postfx_handle_key(&postfx, event.key.keysym.sym);
                     }
                     break;
             }
@@ -122,6 +128,11 @@ int main(void) {
         prof_begin(PROF_SPRITES);
         render_sprites(&view, game.texman, game.grid);
         prof_end(PROF_SPRITES);
+
+        // Last: works on the finished image
+        prof_begin(PROF_POSTFX);
+        postfx_apply(&postfx);
+        prof_end(PROF_POSTFX);
 
         // Upload framebuffer
         prof_begin(PROF_PRESENT);

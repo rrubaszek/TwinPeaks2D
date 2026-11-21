@@ -7,13 +7,13 @@ Tokeny rozdzielone białymi znakami; poza linią sprite'a (pole `z`) podział na
 w h tile_size                        rozmiar w kafelkach, rozmiar kafelka w pikselach świata
 wall floor ceiling                   domyślne tekstury (pliki w maps/textures/)
 count name...                        tabela tekstur mapy (0..MAX_TEXTURES nazw)
-type:texture:height  × w, h wierszy  kafelki
+type:texture:height[:floor:ceiling]  × w, h wierszy  kafelki
 exit0 exit1 exit2 exit3              ścieżka mapy (np. maps/map2.txt) albo NULL
 sprite_count
 x y type texture scale collision_r [z]   jedna linia na sprite
 ```
 
-## Kafelki `type:texture:height`
+## Kafelki `type:texture:height[:floor:ceiling]`
 
 | `type` | Znaczenie | Blokuje ruch | Rysowany |
 |---|---|---|---|
@@ -32,6 +32,11 @@ x y type texture scale collision_r [z]   jedna linia na sprite
   - `< 0.5` — dodatkowo widać wierzch (tekstura kafelka, 1 kopia na kafelek; TODO: osobna
     tekstura wierzchu).
   - Kolizja zależy tylko od typu (1 i 4 blokują), nie od wysokości.
+- `floor`, `ceiling` (opcjonalne, F2): tekstura podłogi i sufitu tego kafelka, numeracja jak
+  `texture`: 0 = domyślna tekstura mapy (`floor` / `ceiling` z nagłówka), k ≥ 1 = pozycja k−1
+  tabeli tekstur. Brak pól = 0. Można podać samo `floor` (`0:0:0.0:2` → sufit domyślny).
+  Edytor zapisuje oba pola tylko, gdy któreś ≠ 0. Przykład: `0:0:0.0:3:0` — pusty kafelek
+  z podłogą z pozycji 2 tabeli.
 
 ## Wyjścia
 

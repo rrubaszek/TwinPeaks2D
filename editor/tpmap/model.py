@@ -45,6 +45,8 @@ class Tile:
     type: TileType = TileType.EMPTY
     texture_id: int = 0
     height: float = 0.0
+    floor_tex: int = 0      # F2: 0 = map floor / ceiling texture, k = texture table entry k-1
+    ceiling_tex: int = 0
 
     @classmethod
     def of(cls, tile_type: TileType, texture_id: int = 0) -> Tile:
@@ -100,10 +102,12 @@ class MapData:
         return self.textures.index(name)
 
     def set_tile(self, x: int, y: int, tile_type: TileType, texture_id: int = 0) -> bool:
-        """Sets tile type with its default height. Returns True if anything changed."""
+        """Sets tile type with its default height; keeps floor/ceiling. True if anything changed."""
         if not self.in_bounds(x, y):
             return False
+        old = self.tiles[y][x]
         new = Tile.of(tile_type, texture_id)
+        new.floor_tex, new.ceiling_tex = old.floor_tex, old.ceiling_tex
         if self.tiles[y][x] == new:
             return False
         self.tiles[y][x] = new

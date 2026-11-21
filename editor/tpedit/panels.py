@@ -48,6 +48,7 @@ class ToolPanel(QWidget):
     tool_changed = Signal(object, object)    # Tool, TileType | None
     sprite_type_changed = Signal(object)     # SpriteType
     wall_texture_changed = Signal(object)    # texture name, None = map wall texture
+    plane_texture_changed = Signal(object)   # floor/ceiling tools: name, None = map default
 
     TOOLS = [  # label, shortcut, tool, tile type
         ("Select / move", "S", Tool.SELECT, None),
@@ -56,6 +57,8 @@ class ToolPanel(QWidget):
         ("Door", "3", Tool.PAINT, TileType.DOOR),
         ("Exit", "4", Tool.PAINT, TileType.EXIT),
         ("Empty (erase)", "0", Tool.PAINT, TileType.EMPTY),
+        ("Floor texture", "5", Tool.FLOOR, None),
+        ("Ceiling texture", "6", Tool.CEILING, None),
         ("Place sprite", "P", Tool.SPRITE, None),
     ]
 
@@ -94,8 +97,18 @@ class ToolPanel(QWidget):
                                      "added to the map's texture table on first paint")
         layout.addWidget(self.wall_texture)
 
+        layout.addWidget(QLabel("Floor / ceiling texture:"))
+        self.plane_texture = QComboBox()
+        self.plane_texture.addItem("(map default)", None)
+        for name in texture_names(textures_dir):
+            self.plane_texture.addItem(name, name)
+        self.plane_texture.setToolTip("Texture for the Floor / Ceiling tools (RMB = map default); "
+                                      "added to the map's texture table on first paint")
+        layout.addWidget(self.plane_texture)
+
         hint = QLabel(
             "<small><b>Paint:</b> LMB draw, RMB erase, Shift+drag rectangle<br>"
+            "<b>Floor/Ceiling:</b> LMB texture, RMB map default<br>"
             "<b>Sprite:</b> LMB place/select, RMB delete, Alt = no snap<br>"
             "<b>Select:</b> drag to move, Del to delete<br>"
             "<b>View:</b> wheel zoom, MMB drag pan, Ctrl+0 fit</small>")
@@ -109,12 +122,15 @@ class ToolPanel(QWidget):
             lambda: self.sprite_type_changed.emit(self.sprite_type.currentData()))
         self.wall_texture.currentIndexChanged.connect(
             lambda: self.wall_texture_changed.emit(self.wall_texture.currentData()))
+        self.plane_texture.currentIndexChanged.connect(
+            lambda: self.plane_texture_changed.emit(self.plane_texture.currentData()))
         self.buttons[1].setChecked(True)
 
     def add_texture(self, name: str) -> None:
         """New file in maps/textures: make it selectable."""
-        if self.wall_texture.findData(name) < 0:
-            self.wall_texture.addItem(name, name)
+        for combo in (self.wall_texture, self.plane_texture):
+            if combo.findData(name) < 0:
+                combo.addItem(name, name)
 
     def _on_toggled(self, idx: int, checked: bool) -> None:
         if checked:

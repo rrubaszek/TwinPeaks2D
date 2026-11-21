@@ -9,5 +9,5 @@ OUT=${1:-$R/build/bench}
 mkdir -p "$(dirname "$OUT")"
 clang -O2 -g -std=c11 -Wall -Wextra -Wpedantic -I"$R/include" $(sdl2-config --cflags) "$@" \
   "$R/tools/bench/bench.c" "$R/src/renderer.c" "$R/src/framebuffer.c" "$R/src/map.c" \
-  "$R/src/texture.c" "$R/src/texturemanager.c" "$R/src/camera.c" \
+  "$R/src/texture.c" "$R/src/texturemanager.c" "$R/src/camera.c" "$R/src/postfx.c" \
   -o "$OUT" $(sdl2-config --libs) $(pkg-config --libs SDL2_image) -lm

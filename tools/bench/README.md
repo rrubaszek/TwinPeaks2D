@@ -15,6 +15,9 @@ tools/bench/build.sh build/bench_asan -O1 -fsanitize=address,undefined -fno-omit
 ```
 `make clean` deletes `build/`, including the bench binaries.
 
+Post-fx (F1): frames are rendered without it unless `BENCH_POSTFX=1` is set
+(`BENCH_POSTFX=1 build/bench png DIR`); `time` always reports a `postfx` section (enabled).
+
 ## Poses and test maps
 Poses are in `poses[]` in `bench.c` (world pixels, radians); indexes are used by `once`.
 Comments there say which map each pose was made for.
@@ -25,6 +28,7 @@ Comments there say which map each pose was made for.
 | `maps/tile_textures.txt` | four walls with their own texture (forest, table entry 3) — D2 |
 | `maps/sprite_z.txt` | pie on counter (2,5) with `z = 0.5`; pie on a plant "table" at the same point — D7 |
 | `maps/low_tables.txt` | two adjacent 0.3 tables (5,3), (6,3) with a pie at `z = 0.3` — F5 top faces |
+| `maps/floor_tiles.txt` | row 6: forest floor on tiles 2–5, forest ceiling on 6–7 (pose `open`) — F2 |
 
 The test maps are copies of `maps/map.txt` from 2026-11-07 with the changes above; they use
 textures from `maps/textures/`.

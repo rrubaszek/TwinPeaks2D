@@ -20,6 +20,8 @@ typedef struct {
     int texture_id;
     float height;
     TileType type;
+    int floor_tex_id;    // texture manager ids, map defaults unless set per tile (F2)
+    int ceiling_tex_id;
 } Tile;
 
 typedef struct {

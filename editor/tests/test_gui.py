@@ -344,3 +344,25 @@ def test_image_colors_limit(app):
     got = image_colors(img)
     assert len(got) == IMAGE_COLORS_TOP
     assert got[0].getRgb() == (0, 0, IMAGE_COLORS_TOP - 1, 255)          # most frequent first
+
+
+def test_floor_ceiling_tools(win):
+    win.canvas.plane_texture = "floor.png"
+    win.canvas.set_tool(Tool.FLOOR)
+    assert win.canvas.tiles.plane == "floor_tex"
+    drag(win, tile_pos(win, 2, 2), tile_pos(win, 4, 2))           # LMB stroke
+    idx = win.map.textures.index("floor.png") + 1
+    assert [win.map.tile(x, 2).floor_tex for x in range(2, 5)] == [idx] * 3
+    assert win.map.tile(2, 2).type == TileType.EMPTY                # type unchanged
+    drag(win, tile_pos(win, 3, 2), tile_pos(win, 3, 2), B.RightButton)
+    assert win.map.tile(3, 2).floor_tex == 0                        # RMB: map default
+
+    win.canvas.set_tool(Tool.CEILING)
+    drag(win, tile_pos(win, 2, 3), tile_pos(win, 3, 4), mods=Qt.KeyboardModifier.ShiftModifier)
+    assert all(win.map.tile(x, y).ceiling_tex == idx for x in (2, 3) for y in (3, 4))
+    assert win.map.tile(2, 3).floor_tex == 0
+
+    win.canvas.set_tool(Tool.PAINT, TileType.WALL)                  # walls keep the planes
+    drag(win, tile_pos(win, 2, 3), tile_pos(win, 2, 3))
+    assert (win.map.tile(2, 3).type, win.map.tile(2, 3).ceiling_tex) == (TileType.WALL, idx)
+    assert win.canvas.tiles.plane is None

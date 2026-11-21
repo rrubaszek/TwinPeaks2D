@@ -111,3 +111,29 @@ def test_validate_sprite_on_counter():
     assert any("inside a wall" in i.message for i in validate(m))
     m.sprites[0].z = -0.1
     assert any("negative height" in i.message for i in validate(m))
+
+
+def test_tile_floor_ceiling_roundtrip():
+    m = MapData.new(5, 4)
+    m.textures = ["floor.png", "drapes.jpeg"]
+    m.tile(1, 1).floor_tex = 1
+    m.tile(2, 1).ceiling_tex = 2
+    text = format_map(m)
+    assert "0:0:0.0:1:0" in text and "0:0:0.0:0:2" in text
+    assert "0:0:0.0:0:0" not in text                      # defaults keep the short form
+    assert parse_map(text) == m
+
+
+def test_tile_floor_short_and_invalid():
+    m = parse_map(format_map(MapData.new(3, 3)).replace("0:0:0.0", "0:0:0.0:0", 1))
+    assert m.tile(1, 1).floor_tex == 0                     # 4 fields: ceiling defaults to 0
+    bad = MapData.new(3, 3)
+    bad.tile(1, 1).floor_tex = 5                           # table is empty
+    assert any(i.error and "floor texture 5" in i.message for i in validate(bad))
+
+
+def test_set_tile_keeps_floor_ceiling():
+    m = MapData.new(4, 4)
+    m.tile(1, 1).floor_tex, m.tile(1, 1).ceiling_tex = 1, 2
+    m.set_tile(1, 1, TileType.LOWWALL)
+    assert (m.tile(1, 1).floor_tex, m.tile(1, 1).ceiling_tex) == (1, 2)

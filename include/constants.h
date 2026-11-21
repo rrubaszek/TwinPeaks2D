@@ -26,4 +26,9 @@
 
 #define MAX_LOW_SEGS 8   // low walls remembered per screen column (farther ones are skipped)
 
+// F1 retro post-process (postfx.c); at runtime: F2 on/off, F3 block size, F4 colour depth
+#define POSTFX_ENABLED 1   // on at start
+#define POSTFX_PIXEL 2     // pixel block size in screen pixels (2 -> 400x300 look)
+#define POSTFX_LEVELS 32   // colour levels per channel (32 = 15-bit colour, as on PS1)
+
 #endif // CONSTANTS_H

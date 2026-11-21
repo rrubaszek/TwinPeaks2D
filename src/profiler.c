@@ -9,7 +9,7 @@
 
 static const char* names[PROF_COUNT] = {
     "clear_framebuffer", "render_floor_ceiling", "raycaster", "render_sprites",
-    "upload + present", "frame (no delay)"
+    "postfx_apply", "upload + present", "frame (no delay)"
 };
 
 static double start_ms[PROF_COUNT];

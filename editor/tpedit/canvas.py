@@ -85,6 +85,12 @@ class Tool(Enum):
     SELECT = "select"
     PAINT = "paint"
     SPRITE = "sprite"
+    FLOOR = "floor"      # F2: paint the floor / ceiling texture of tiles, type unchanged
+    CEILING = "ceiling"
+
+
+PLANE_ATTR = {Tool.FLOOR: "floor_tex", Tool.CEILING: "ceiling_tex"}
+PLANE_COLOR = QColor("#4cc9f0")   # marks tiles with their own floor / ceiling
 
 
 class TileLayer(QGraphicsItem):
@@ -95,6 +101,7 @@ class TileLayer(QGraphicsItem):
         self.map = map_data
         self.textures_dir = textures_dir
         self._pixmaps: dict[str, QPixmap | None] = {}   # thumbnail cache, None = missing file
+        self.plane: str | None = None   # "floor_tex" / "ceiling_tex": show that layer's textures
         self.setFlag(QGraphicsItem.GraphicsItemFlag.ItemUsesExtendedStyleOption)
         self._font = QFont()
         self._font.setPixelSize(int(CELL * 0.45))
@@ -128,6 +135,15 @@ class TileLayer(QGraphicsItem):
                 pm = self._thumbnail(tile.texture_id)
                 if pm is not None:  # own texture: thumbnail inside a frame of the type colour
                     painter.drawPixmap(cell.adjusted(3, 3, -3, -3), pm, QRectF(pm.rect()))
+                if self.plane is not None and t not in TEXTURED_TILES:
+                    plane_pm = self._thumbnail(getattr(tile, self.plane))
+                    if plane_pm is not None:   # floor/ceiling layer view: its texture fills the cell
+                        painter.drawPixmap(cell.adjusted(1, 1, -1, -1), plane_pm, QRectF(plane_pm.rect()))
+                q = CELL / 4
+                if tile.floor_tex:     # small marks: bottom-left = own floor, top-right = own ceiling
+                    painter.fillRect(QRectF(cell.left() + 1, cell.bottom() - q - 1, q, q), PLANE_COLOR)
+                if tile.ceiling_tex:
+                    painter.fillRect(QRectF(cell.right() - q - 1, cell.top() + 1, q, q), PLANE_COLOR)
                 letter = TILE_LETTERS.get(t)
                 if letter:
                     painter.setPen(QColor("#1b1b1b"))
@@ -228,6 +244,8 @@ class MapCanvas(QGraphicsView):
         self.tool = Tool.PAINT
         self.paint_type = TileType.WALL
         self.paint_texture: str | None = None   # None = map wall texture
+        self.plane_texture: str | None = None   # floor/ceiling tools; None = map default
+        self._stroke_plane = 0                  # texture number the floor/ceiling stroke writes
         self.sprite_type = SpriteType.STATIC
 
         self._pan_from: QPointF | None = None
@@ -334,6 +352,11 @@ class MapCanvas(QGraphicsView):
         self.tool = tool
         if paint_type is not None:
             self.paint_type = paint_type
+        if self.tiles is not None:
+            plane = PLANE_ATTR.get(tool)
+            if plane != self.tiles.plane:
+                self.tiles.plane = plane
+                self.tiles.update()
         movable = tool == Tool.SELECT
         for item in self.sprite_items.values():
             item.setFlag(QGraphicsItem.GraphicsItemFlag.ItemIsMovable, movable)
@@ -346,7 +369,20 @@ class MapCanvas(QGraphicsView):
         p = self.mapToScene(view_pos)
         return math.floor(p.x() / CELL), math.floor(p.y() / CELL)
 
+    def _paint_plane(self, x: int, y: int) -> bool:
+        """Floor/ceiling tools: sets the tile's texture number for that plane, type unchanged."""
+        if not self.map.in_bounds(x, y):
+            return False
+        tile, attr = self.map.tile(x, y), PLANE_ATTR[self.tool]
+        if getattr(tile, attr) == self._stroke_plane:
+            return False
+        setattr(tile, attr, self._stroke_plane)
+        self.tiles.update_tile(x, y)
+        return True
+
     def _paint_tile(self, x: int, y: int, tile_type: TileType) -> bool:
+        if self.tool in PLANE_ATTR:
+            return self._paint_plane(x, y)
         texture_id = 0
         if self.paint_texture and tile_type in TEXTURED_TILES and self.map.in_bounds(x, y):
             texture_id = self.map.texture_index(self.paint_texture) + 1  # joins table on first use
@@ -390,7 +426,7 @@ class MapCanvas(QGraphicsView):
         x0, x1 = sorted((a[0], b[0]))
         y0, y1 = sorted((a[1], b[1]))
         self._preview.setRect(QRectF(x0 * CELL, y0 * CELL, (x1 - x0 + 1) * CELL, (y1 - y0 + 1) * CELL))
-        color = QColor(TILE_COLORS[self._stroke_type])
+        color = QColor(PLANE_COLOR if self.tool in PLANE_ATTR else TILE_COLORS[self._stroke_type])
         color.setAlpha(110)
         self._preview.setBrush(color)
         self._preview.show()
@@ -420,8 +456,13 @@ class MapCanvas(QGraphicsView):
             return
 
         tile = self.tile_at(event.position().toPoint())
-        if self.tool == Tool.PAINT and button in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
-            self._stroke_type = self.paint_type if button == Qt.MouseButton.LeftButton else TileType.EMPTY
+        painting = self.tool == Tool.PAINT or self.tool in PLANE_ATTR
+        if painting and button in (Qt.MouseButton.LeftButton, Qt.MouseButton.RightButton):
+            left = button == Qt.MouseButton.LeftButton
+            self._stroke_type = self.paint_type if left else TileType.EMPTY
+            if self.tool in PLANE_ATTR:   # LMB = chosen texture, RMB = back to the map default
+                self._stroke_plane = (self.map.texture_index(self.plane_texture) + 1
+                                      if left and self.plane_texture else 0)
             if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
                 self._rect_start = tile
                 self._show_rect_preview(tile, tile)

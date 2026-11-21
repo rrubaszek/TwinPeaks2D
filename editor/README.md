@@ -16,10 +16,15 @@ Tests (offscreen, no window): `.venv/bin/python -m pytest editor/tests`
 | Tool | Mouse |
 |---|---|
 | Wall / Low wall / Door / Exit / Empty (`1` `2` `3` `4` `0`) | LMB paint, RMB erase, Shift+drag rectangle |
+| Floor / Ceiling texture (`5` `6`) | LMB paint the chosen texture, RMB back to the map default, Shift+drag rectangle; the tile type is not changed |
 | Place sprite (`P`) | LMB place (snaps to ½ tile, Alt = free) or select, RMB delete |
 | Select / move (`S`) | drag sprites, rubber-band select, Del deletes |
 | View | wheel zoom, middle-drag pan, Ctrl+0 fit |
 | Sprite pixel editor (Tools menu, or **Edit…** in the Sprite panel) | LMB paint, RMB transparent, drag draws a line |
+
+**Floor / ceiling texture** (Tools panel): texture for the Floor / Ceiling tools. While one of
+them is active, the grid shows that layer's textures; otherwise small blue marks show tiles with
+their own floor (bottom-left) or ceiling (top-right). Painting a wall keeps the tile's floor/ceiling.
 
 **Wall texture** (Tools panel): texture for painted walls / low walls. `(map default)` = the map's
 wall texture; another file is added to the map's texture table on first paint. Tiles with their
