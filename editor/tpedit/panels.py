@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDia
 from tpmap.model import EXIT_COUNT, NO_EXIT, MapData, Sprite, SpriteType, TileType
 from tpmap.txt_format import MAX_EXIT_NAME, MAX_TEXTURE_NAME, Issue
 
-from .canvas import SPRITE_COLORS, TILE_COLORS, Tool, lowwall_height
+from .canvas import SPRITE_COLORS, TILE_COLORS, Tool, lowwall_height, sprite_below_top
 
 MAX_MAP_SIDE = 256
 
@@ -244,6 +244,8 @@ class SpritePanel(QWidget):
         self.z.setToolTip("Base height in wall units; 0.5 = on top of a 0.5 counter")
         self.on_tile_top = QPushButton("On tile top")
         self.on_tile_top.setToolTip("Set height to the low wall under the sprite (0 elsewhere)")
+        self.on_sprite_below = QPushButton("On sprite below")
+        self.on_sprite_below.setToolTip("Set height to the top (z + scale) of the sprite under this one")
 
         form.addRow("Type", self.type)
         form.addRow("X (tiles)", self.x)
@@ -254,12 +256,14 @@ class SpritePanel(QWidget):
         z_row = QHBoxLayout()
         z_row.addWidget(self.z)
         z_row.addWidget(self.on_tile_top)
+        z_row.addWidget(self.on_sprite_below)
         form.addRow("Height (z)", z_row)
 
         self.type.currentIndexChanged.connect(self._commit)
         for w in (self.x, self.y, self.scale, self.collision_r, self.z):
             w.valueChanged.connect(self._commit)
         self.on_tile_top.clicked.connect(self.put_on_tile_top)
+        self.on_sprite_below.clicked.connect(self.put_on_sprite_below)
         self.texture.activated.connect(lambda _: self.choose_texture(self.texture.currentText()))
         self.set_sprite(None)
 
@@ -290,10 +294,17 @@ class SpritePanel(QWidget):
             return
         self.z.setValue(lowwall_height(m, s.x, s.y))   # valueChanged -> _commit
 
+    def put_on_sprite_below(self) -> None:
+        """z = top of the sprite this one stands on, 0 if none."""
+        s, m = self.sprite, self.map
+        if s is None or m is None:
+            return
+        self.z.setValue(sprite_below_top(m, s))   # valueChanged -> _commit
+
     def set_sprite(self, s: Sprite | None) -> None:
         self.sprite = None  # block _commit while filling widgets
         for w in (self.type, self.x, self.y, self.texture, self.scale, self.collision_r,
-                  self.z, self.on_tile_top):
+                  self.z, self.on_tile_top, self.on_sprite_below):
             w.setEnabled(s is not None)
         if s is not None:
             self.info.setText("Selected sprite")

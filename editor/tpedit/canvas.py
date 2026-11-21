@@ -46,6 +46,16 @@ def lowwall_height(m: MapData, x: float, y: float) -> float:
     return 0.0
 
 
+STACK_RADIUS = 0.25  # sprites closer than this (tiles) count as stacked; placement snaps to 1/2 tile
+
+
+def sprite_below_top(m: MapData, s: Sprite) -> float:
+    """Top (z + scale, wall units) of the highest other sprite under `s`, 0 if none."""
+    tops = [o.z + o.scale for o in m.sprites
+            if o is not s and math.hypot(o.x - s.x, o.y - s.y) <= STACK_RADIUS]
+    return max(tops, default=0.0)
+
+
 class Tool(Enum):
     SELECT = "select"
     PAINT = "paint"

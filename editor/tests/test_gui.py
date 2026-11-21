@@ -7,9 +7,9 @@ from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QMouseEvent
 from PySide6.QtWidgets import QApplication, QMessageBox
 
-from tpedit.canvas import CELL, Tool
+from tpedit.canvas import CELL, Tool, sprite_below_top
 from tpedit.main_window import MAPS_DIR, MainWindow
-from tpmap.model import SpriteType, TileType
+from tpmap.model import MapData, Sprite, SpriteType, TileType
 from tpmap.txt_format import load_map, validate
 
 B = Qt.MouseButton
@@ -189,3 +189,26 @@ def test_sprite_on_counter_gets_z(win):
     assert s.z == 0.2
     win.sprite_panel.on_tile_top.click()                           # button snaps back to the top
     assert s.z == 0.5
+
+
+def test_sprite_below_top():
+    m = MapData.new(8, 8)
+    table = Sprite(2.5, 2.5, scale=0.5)
+    pie = Sprite(2.5, 2.5, scale=0.3)
+    far = Sprite(4.5, 2.5, scale=2.0)            # not under the pie
+    m.sprites += [table, pie, far]
+    assert sprite_below_top(m, pie) == 0.5
+    table.z = 0.5                                # table on a 0.5 counter
+    assert sprite_below_top(m, pie) == 1.0
+    assert sprite_below_top(m, far) == 0.0
+
+
+def test_on_sprite_below_button(win):
+    # A click on an existing sprite selects it, so the stack is built via add_sprite
+    table = win.canvas.add_sprite(5.5, 5.5)
+    table.scale = 0.5
+    pie = win.canvas.add_sprite(5.5, 5.5)                # selected -> shown in the panel
+    assert win.sprite_panel.sprite is pie
+    win.sprite_panel.on_sprite_below.click()
+    assert pie.z == 0.5
+    assert win.sprite_panel.z.value() == 0.5
