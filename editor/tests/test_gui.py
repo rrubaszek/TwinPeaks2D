@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
-from PySide6.QtGui import QMouseEvent
+from PySide6.QtGui import QColor, QMouseEvent
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from tpedit.canvas import CELL, Tool, sprite_below_top
@@ -212,3 +212,44 @@ def test_on_sprite_below_button(win):
     win.sprite_panel.on_sprite_below.click()
     assert pie.z == 0.5
     assert win.sprite_panel.z.value() == 0.5
+
+
+def test_sprite_below_top_skips_transparent_rows(app, tmp_path):
+    from PySide6.QtGui import QColor, QImage
+    img = QImage(8, 4, QImage.Format.Format_ARGB32)
+    img.fill(QColor(200, 100, 50, 255))
+    for x in range(8):                                   # top row transparent
+        img.setPixelColor(x, 0, QColor(0, 0, 0, 0))
+    assert img.save(str(tmp_path / "table.png"))
+
+    m = MapData.new(8, 8)
+    m.textures = ["table.png"]
+    table = Sprite(2.5, 2.5, texture_id=0, scale=0.8)
+    pie = Sprite(2.5, 2.5, scale=0.3)
+    m.sprites += [table, pie]
+    assert sprite_below_top(m, pie, tmp_path) == pytest.approx(0.6)   # 0.8 * 3/4
+    assert sprite_below_top(m, pie) == pytest.approx(0.8)             # no textures_dir: full
+
+
+def widget_mouse(w, kind, pos: QPoint, button=B.LeftButton):
+    types = {"press": QEvent.Type.MouseButtonPress, "move": QEvent.Type.MouseMove,
+             "release": QEvent.Type.MouseButtonRelease}
+    ev = QMouseEvent(types[kind], QPointF(pos), QPointF(w.mapToGlobal(pos)),
+                     B.NoButton if kind == "move" else button,
+                     B.NoButton if kind == "release" else button, NO_MOD)
+    QApplication.sendEvent(w, ev)
+
+
+def test_pixel_canvas_paint_erase_line(app):
+    from tpedit.pixel_editor import PixelCanvas
+    c = PixelCanvas(zoom=10)
+    c.color = QColor(200, 30, 40)
+    at = lambda x, y: QPoint(x * 10 + 5, y * 10 + 5)
+    widget_mouse(c, "press", at(0, 0))
+    widget_mouse(c, "move", at(5, 0))                     # one jump of 5 pixels
+    widget_mouse(c, "release", at(5, 0))
+    assert all(c.image.pixelColor(x, 0) == QColor(200, 30, 40) for x in range(6))
+    widget_mouse(c, "press", at(3, 0), B.RightButton)
+    widget_mouse(c, "release", at(3, 0), B.RightButton)
+    assert c.image.pixelColor(3, 0).alpha() == 0
+    assert c.image.pixelColor(0, 1).alpha() == 0          # untouched pixel stays transparent

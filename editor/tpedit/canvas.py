@@ -7,7 +7,7 @@ from enum import Enum
 from pathlib import Path
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QBrush, QColor, QFont, QPainter, QPen, QPixmap
+from PySide6.QtGui import QBrush, QColor, QFont, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import (QApplication, QGraphicsEllipseItem, QGraphicsItem,
                                QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem,
                                QGraphicsView, QStyle, QStyleOptionGraphicsItem)
@@ -49,9 +49,34 @@ def lowwall_height(m: MapData, x: float, y: float) -> float:
 STACK_RADIUS = 0.25  # sprites closer than this (tiles) count as stacked; placement snaps to 1/2 tile
 
 
-def sprite_below_top(m: MapData, s: Sprite) -> float:
-    """Top (z + scale, wall units) of the highest other sprite under `s`, 0 if none."""
-    tops = [o.z + o.scale for o in m.sprites
+_opaque_cache: dict[Path, float] = {}   # texture path -> opaque height fraction
+
+
+def opaque_height(path: Path) -> float:
+    """Fraction of the texture height from the bottom up to its topmost non-transparent row.
+    1.0 if the file is missing or has no alpha (treated as the full texture)."""
+    if path not in _opaque_cache:
+        img = QImage(str(path))
+        frac = 1.0
+        if not img.isNull() and img.hasAlphaChannel():
+            a = img.convertToFormat(QImage.Format.Format_Alpha8)
+            bpl, data = a.bytesPerLine(), bytes(a.constBits())
+            w, h = a.width(), a.height()
+            top = next((y for y in range(h) if any(data[y * bpl:y * bpl + w])), h)
+            frac = (h - top) / h
+        _opaque_cache[path] = frac
+    return _opaque_cache[path]
+
+
+def sprite_below_top(m: MapData, s: Sprite, textures_dir: Path | None = None) -> float:
+    """Top (wall units) of the highest other sprite under `s`, 0 if none.
+    With textures_dir, transparent rows at the top of its texture are not counted."""
+    def top(o: Sprite) -> float:
+        frac = 1.0
+        if textures_dir is not None and 0 <= o.texture_id < len(m.textures):
+            frac = opaque_height(textures_dir / m.textures[o.texture_id])
+        return o.z + o.scale * frac
+    tops = [top(o) for o in m.sprites
             if o is not s and math.hypot(o.x - s.x, o.y - s.y) <= STACK_RADIUS]
     return max(tops, default=0.0)
 

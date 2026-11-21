@@ -225,6 +225,7 @@ class SpritePanel(QWidget):
         super().__init__(parent)
         self.sprite: Sprite | None = None
         self.map: MapData | None = None  # owns the texture table the sprite indexes
+        self.textures_dir = textures_dir
         form = QFormLayout(self)
         self.info = QLabel("No sprite selected")
         form.addRow(self.info)
@@ -299,7 +300,7 @@ class SpritePanel(QWidget):
         s, m = self.sprite, self.map
         if s is None or m is None:
             return
-        self.z.setValue(sprite_below_top(m, s))   # valueChanged -> _commit
+        self.z.setValue(sprite_below_top(m, s, self.textures_dir))   # valueChanged -> _commit
 
     def set_sprite(self, s: Sprite | None) -> None:
         self.sprite = None  # block _commit while filling widgets
