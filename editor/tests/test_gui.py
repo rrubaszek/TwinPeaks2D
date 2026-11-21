@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QColor, QMouseEvent
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
 from tpedit.canvas import CELL, Tool, sprite_below_top
 from tpedit.main_window import MAPS_DIR, MainWindow
@@ -253,3 +253,67 @@ def test_pixel_canvas_paint_erase_line(app):
     widget_mouse(c, "release", at(3, 0), B.RightButton)
     assert c.image.pixelColor(3, 0).alpha() == 0
     assert c.image.pixelColor(0, 1).alpha() == 0          # untouched pixel stays transparent
+
+
+def test_pixel_editor_palette(app):
+    from tpedit.pixel_editor import PixelEditorDialog, helper_palette
+    base = helper_palette()
+    assert len(base) == 17                                # PALETTE in helpers/generate_sprites.py
+    unique = len({c.rgba() for c in base})                # 'c' and 'B' share (90, 50, 25)
+    d = PixelEditorDialog()
+    assert d.palette_grid.count() == unique               # empty image adds nothing
+    d.palette_grid.itemAt(4).widget().click()
+    assert d.canvas.color == d.palette_colors()[4]
+    d.canvas.image.setPixelColor(0, 0, QColor(1, 2, 3))   # colour not in PALETTE
+    d.refresh_palette()
+    assert d.palette_grid.count() == unique + 1
+
+
+def test_pixel_editor_save_roundtrip(app, tmp_path, monkeypatch):
+    from tpedit.pixel_editor import PixelEditorDialog
+    d = PixelEditorDialog(textures_dir=tmp_path)
+    d.canvas.paint_line(QPoint(1, 2), QPoint(1, 2), QColor(10, 20, 30, 128))
+    assert d.dirty
+    saved = []
+    d.saved.connect(saved.append)
+    monkeypatch.setattr(QFileDialog, "getSaveFileName",
+                        lambda *a, **k: (str(tmp_path / "sprite_x"), ""))   # no extension typed
+    assert d.save()                                    # no path yet -> Save as
+    p = tmp_path / "sprite_x.png"
+    assert saved == [p] and not d.dirty
+
+    d2 = PixelEditorDialog(textures_dir=tmp_path)
+    assert d2.open_path(p)
+    c = d2.canvas.image.pixelColor(1, 2)
+    assert (c.red(), c.green(), c.blue(), c.alpha()) == (10, 20, 30, 128)
+    assert d2.canvas.image.pixelColor(0, 0).alpha() == 0
+
+
+def test_pixel_editor_from_sprite_panel(win):
+    if not (MAPS_DIR / "textures" / "sprite_mug.png").exists():
+        pytest.skip("textures not generated (helpers/generate_sprites.py)")
+    s = win.canvas.add_sprite(2.5, 2.5)
+    win.sprite_panel.choose_texture("sprite_mug.png")
+    win.sprite_panel.set_sprite(s)
+    win.sprite_panel.edit_texture.click()
+    ed = win.pixel_editor
+    assert ed is not None and ed.isVisible()
+    assert ed.path == MAPS_DIR / "textures" / "sprite_mug.png"
+    assert ed.canvas.image.width() == 16
+    ed.dirty = False
+    ed.close()
+
+
+def test_texture_saved_updates_editor(win, tmp_path, monkeypatch):
+    import tpedit.main_window as mw
+    from tpedit.canvas import _opaque_cache
+    monkeypatch.setattr(mw, "TEXTURES_DIR", tmp_path)
+    _opaque_cache[tmp_path / "sprite_t.png"] = 0.5               # stale entry
+    win._texture_saved(tmp_path / "sprite_t.png")
+    assert not _opaque_cache
+    assert win.tools.wall_texture.findData("sprite_t.png") >= 0
+    assert win.sprite_panel.texture.findText("sprite_t.png") >= 0
+    assert win.map_panel.floor_tex.findText("sprite_t.png") >= 0
+
+    win._texture_saved(tmp_path / "elsewhere" / "other.png")      # outside maps/textures
+    assert win.sprite_panel.texture.findText("other.png") < 0

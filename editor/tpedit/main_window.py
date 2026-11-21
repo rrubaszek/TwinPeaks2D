@@ -14,6 +14,7 @@ from tpmap.txt_format import MapFormatError, format_map, load_map, validate
 
 from .canvas import MapCanvas
 from .panels import IssuesPanel, MapPanel, NewMapDialog, SpritePanel, ToolPanel
+from .pixel_editor import PixelEditorDialog
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 MAPS_DIR = PROJECT_ROOT / "maps"
@@ -26,6 +27,7 @@ class MainWindow(QMainWindow):
         self.path: Path | None = None
         self.dirty = False
         self.map: MapData | None = None
+        self.pixel_editor: PixelEditorDialog | None = None   # created on first use
 
         self.canvas = MapCanvas(TEXTURES_DIR)
         self.setCentralWidget(self.canvas)
@@ -99,6 +101,9 @@ class MainWindow(QMainWindow):
                lambda: self.canvas.delete_sprites(self.canvas.selected_sprites()),
                QKeySequence.StandardKey.Delete)
 
+        tools_menu = self.menuBar().addMenu("&Tools")
+        action(tools_menu, "Sprite &pixel editor…", lambda: self.open_pixel_editor(""))
+
         view_menu = self.menuBar().addMenu("&View")
         action(view_menu, "Zoom in", lambda: self.canvas.zoom(1.25), QKeySequence.StandardKey.ZoomIn)
         action(view_menu, "Zoom out", lambda: self.canvas.zoom(0.8), QKeySequence.StandardKey.ZoomOut)
@@ -116,6 +121,7 @@ class MainWindow(QMainWindow):
         self.canvas.sprite_selected.connect(self.sprite_panel.set_sprite)
         self.canvas.sprite_moved.connect(self._sprite_moved)
         self.sprite_panel.sprite_edited.connect(self._sprite_edited)
+        self.sprite_panel.edit_texture_requested.connect(self.open_pixel_editor)
         self.map_panel.changed.connect(self._mark_dirty)
         self.map_panel.resize_requested.connect(self._resize_map)
 
@@ -164,6 +170,27 @@ class MainWindow(QMainWindow):
     def _sprite_edited(self, s) -> None:
         self.canvas.refresh_sprite(s)
         self._mark_dirty()
+
+    # ----- sprite pixel editor -------------------------------------------------------------
+    def open_pixel_editor(self, texture: str) -> None:
+        """Shows the (non-modal) pixel editor; with a name, opens maps/textures/<name>."""
+        if self.pixel_editor is None:
+            self.pixel_editor = PixelEditorDialog(self, textures_dir=TEXTURES_DIR)
+            self.pixel_editor.saved.connect(self._texture_saved)
+        ed = self.pixel_editor
+        path = TEXTURES_DIR / texture if texture else None
+        if path is not None and ed.path != path and ed.maybe_discard():
+            ed.open_path(path)
+        ed.show()
+        ed.raise_()
+        ed.activateWindow()
+
+    def _texture_saved(self, path: Path) -> None:
+        self.canvas.texture_file_changed(path)
+        if path.parent.resolve() == TEXTURES_DIR.resolve():   # elsewhere the game can't load it
+            for panel in (self.tools, self.map_panel, self.sprite_panel):
+                panel.add_texture(path.name)
+        self._run_validation()   # e.g. "missing texture" may be gone now
 
     def _resize_map(self, w: int, h: int) -> None:
         m = self.map
@@ -255,6 +282,9 @@ class MainWindow(QMainWindow):
         return True
 
     def closeEvent(self, event) -> None:
+        if self.pixel_editor is not None and not self.pixel_editor.maybe_discard():
+            event.ignore()
+            return
         if not self.maybe_discard():
             event.ignore()
             return

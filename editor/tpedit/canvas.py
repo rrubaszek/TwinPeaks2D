@@ -286,6 +286,13 @@ class MapCanvas(QGraphicsView):
         if item:
             item.sync_from_model()
 
+    def texture_file_changed(self, path: Path) -> None:
+        """A texture file was (re)written: drop cached data for it and repaint the tiles."""
+        _opaque_cache.clear()   # keyed by full path; a few small files, cheap to reload
+        if self.tiles is not None:
+            self.tiles._pixmaps.pop(path.name, None)
+            self.tiles.update()
+
     def selected_sprites(self) -> list[Sprite]:
         return [i.sprite for i in self.scene().selectedItems() if isinstance(i, SpriteItem)]
 
