@@ -91,7 +91,8 @@ Kryterium: zero alokacji na stercie w pętli klatki.
 - D1 `DONE` Sprite'y renderowane do framebuffera — z_buffer, tekstury z tabeli tekstur mapy,
   przezroczystość (alfa), stoją na podłodze (skala 1.0 = wysokość ściany), odrzucanie przed sortowaniem.
 - D5 `?` Las z animacją wiatru (wymaga D1)
-  - D5.1 Przezroczystość sprite'ów (alfa z PNG zamiast czarnego tła BMP) — `DONE`; tekstury drzew — `TODO`.
+  - D5.1 Przezroczystość sprite'ów (alfa z PNG zamiast czarnego tła BMP) — `DONE`; tekstury drzew — `DONE`
+    (`helpers/generate_trees.py`: proceduralna daglezja 64×64 i 64×192, `--seed` = inne drzewo).
   - D5.2 Wiele drzew: odrzucanie poza polem widzenia i za odległością, rysowanie od przodu do tyłu
     z buforem pokrycia (bez overdraw — ta sama idea co odłożone B1.4).
   - D5.3 Wiatr — sprite'y zewnętrzne (drzewa, krzaki) kołyszą się delikatnie; wnętrza stoją.
@@ -104,8 +105,8 @@ Kryterium: zero alokacji na stercie w pętli klatki.
     - W4 `render_sprites`: dla `wind > 0` tablica przesunięć per wiersz
       `WIND_AMPLITUDE * wind * sway * szerokość * (1 - v)^2` (na stosie), `texX` liczone per piksel;
       sprite'y z `wind = 0` bez zmian.
-    - W5 Poszerzenie zakresu kolumn i odrzucania o maksymalne przesunięcie (korona nie jest
-      obcinana na brzegu ekranu ani sprite'a).
+    - W5 `ODŁOŻONE` (obecne mapy go nie wymagają) Poszerzenie zakresu kolumn i odrzucania
+      o maksymalne przesunięcie (korona nie jest obcinana na brzegu ekranu ani sprite'a).
     - W6 Edytor: pole `wind` w modelu, odczyt/zapis (z `z`, gdy `wind ≠ 0`), walidacja `wind ≥ 0`,
       test w `editor/tests/test_txt_format.py`; pole „Wind” w panelu Sprite.
     - W7 Mapy: `wind` = 1 dla drzew w `maps/map2.txt`; wnętrza (`map.txt`) bez zmian.
@@ -115,6 +116,11 @@ Kryterium: zero alokacji na stercie w pętli klatki.
   - D5.5 Edytor: pędzel „rozsyp drzewa” (gęstość, losowa skala); opcjonalnie parametry
     wiatru per mapa.
   - D5.6 Opcjonalnie: parametry wiatru per mapa (siła, kierunek) zamiast stałych — razem z D5.5.
+  - D5.7 `TODO` Drzewa wyższe niż ściany: sprite z `scale` > 1 i wysoką teksturą (64×192).
+    Dziś sprite za bliższą ścianą znika w całej kolumnie (`z_buffer`); ma być rysowany powyżej
+    górnej krawędzi tej ściany (`wall_start[col]` z `raycaster`). Opcjonalnie niebo zamiast
+    sufitu na mapach zewnętrznych.
+    Kryterium: drzewo `scale 3` stojące za ścianą wystaje ponad nią.
   - Opcjonalnie: 2–4 klatki animacji liści, opadające liście, mocniejsza mgła w oddali,
     `forest.jpeg` jako ściana „skraju lasu” za sprite'ami.
   Kryterium: scena z ≥ 200 drzewami kołysze się płynnie (drzewa niezsynchronizowane, widoczne
