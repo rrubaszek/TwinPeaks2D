@@ -5,6 +5,7 @@ Layout:
     wall floor ceiling                 texture file names in maps/textures/
     count name...                      texture table; sprite texture_id = index into it
     type:texture_id:height  x w, h rows  tile texture_id: 0 = wall texture, k = table entry k-1
+                                       optional :floor:ceiling (F2); ceiling -1 = open sky
     exit0 exit1 exit2 exit3            map path or NULL
     sprite_count
     x y type texture_id scale collision_r [z [wind]]   one line per sprite, x y in tile units,
@@ -17,8 +18,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from .model import (EXIT_COUNT, NO_EXIT, SOLID_TILES, MapData, Sprite, SpriteType, Tile,
-                    TileType)
+from .model import (CEILING_SKY, EXIT_COUNT, NO_EXIT, SKY_TEXTURE, SOLID_TILES, MapData, Sprite,
+                    SpriteType, Tile, TileType)
 
 # Limits from the C side
 TEXTURE_PATH = "maps/textures/"   # constants.h
@@ -232,9 +233,15 @@ def validate(m: MapData, textures_dir: Path | None = None) -> list[Issue]:
         for x, t in enumerate(row):
             for what, tex in (("texture", t.texture_id), ("floor texture", t.floor_tex),
                               ("ceiling texture", t.ceiling_tex)):
-                if not 0 <= tex <= len(m.textures):
+                sky = what == "ceiling texture" and tex == CEILING_SKY
+                if not (0 <= tex <= len(m.textures) or sky):
                     issues.append(Issue(True, f"tile at row {y}, col {x}: {what} {tex} "
                                               "not in texture table"))
+
+    if (textures_dir is not None and not (textures_dir / SKY_TEXTURE).is_file()
+            and any(t.ceiling_tex == CEILING_SKY for row in m.tiles for t in row)):
+        issues.append(Issue(False, f"open sky needs '{SKY_TEXTURE}' in {textures_dir} "
+                                   "(helpers/generate_outdoor.py)"))
 
     has_exit_tile = any(t.type == TileType.EXIT for row in m.tiles for t in row)
     has_exit_target = any(e != NO_EXIT for e in m.exits)

@@ -12,7 +12,7 @@ from PySide6.QtWidgets import (QApplication, QGraphicsEllipseItem, QGraphicsItem
                                QGraphicsRectItem, QGraphicsScene, QGraphicsSimpleTextItem,
                                QGraphicsView, QStyle, QStyleOptionGraphicsItem)
 
-from tpmap.model import TEXTURED_TILES, MapData, Sprite, SpriteType, TileType
+from tpmap.model import CEILING_SKY, TEXTURED_TILES, MapData, Sprite, SpriteType, TileType
 
 CELL = 32.0          # scene units per tile
 SPRITE_SNAP = 0.5    # sprites snap to half tiles (hold Alt for free placement)
@@ -91,6 +91,8 @@ class Tool(Enum):
 
 PLANE_ATTR = {Tool.FLOOR: "floor_tex", Tool.CEILING: "ceiling_tex"}
 PLANE_COLOR = QColor("#4cc9f0")   # marks tiles with their own floor / ceiling
+PLANE_SKY = "(open sky)"          # plane_texture choice: ceiling -1 (D5.8), no texture file
+SKY_COLOR = QColor("#cfe8ff")     # open-sky ceiling: pale blue, unlike walls (#8d99ae) and marks
 
 
 class TileLayer(QGraphicsItem):
@@ -136,6 +138,8 @@ class TileLayer(QGraphicsItem):
                 if pm is not None:  # own texture: thumbnail inside a frame of the type colour
                     painter.drawPixmap(cell.adjusted(3, 3, -3, -3), pm, QRectF(pm.rect()))
                 if self.plane is not None and t not in TEXTURED_TILES:
+                    if getattr(tile, self.plane) == CEILING_SKY:   # open sky: plain sky colour
+                        painter.fillRect(cell.adjusted(1, 1, -1, -1), SKY_COLOR)
                     plane_pm = self._thumbnail(getattr(tile, self.plane))
                     if plane_pm is not None:   # floor/ceiling layer view: its texture fills the cell
                         painter.drawPixmap(cell.adjusted(1, 1, -1, -1), plane_pm, QRectF(plane_pm.rect()))
@@ -143,7 +147,8 @@ class TileLayer(QGraphicsItem):
                 if tile.floor_tex:     # small marks: bottom-left = own floor, top-right = own ceiling
                     painter.fillRect(QRectF(cell.left() + 1, cell.bottom() - q - 1, q, q), PLANE_COLOR)
                 if tile.ceiling_tex:
-                    painter.fillRect(QRectF(cell.right() - q - 1, cell.top() + 1, q, q), PLANE_COLOR)
+                    painter.fillRect(QRectF(cell.right() - q - 1, cell.top() + 1, q, q),
+                                     SKY_COLOR if tile.ceiling_tex == CEILING_SKY else PLANE_COLOR)
                 letter = TILE_LETTERS.get(t)
                 if letter:
                     painter.setPen(QColor("#1b1b1b"))
@@ -374,7 +379,7 @@ class MapCanvas(QGraphicsView):
         if not self.map.in_bounds(x, y):
             return False
         tile, attr = self.map.tile(x, y), PLANE_ATTR[self.tool]
-        if getattr(tile, attr) == self._stroke_plane:
+        if self._stroke_plane is None or getattr(tile, attr) == self._stroke_plane:
             return False
         setattr(tile, attr, self._stroke_plane)
         self.tiles.update_tile(x, y)
@@ -461,8 +466,11 @@ class MapCanvas(QGraphicsView):
             left = button == Qt.MouseButton.LeftButton
             self._stroke_type = self.paint_type if left else TileType.EMPTY
             if self.tool in PLANE_ATTR:   # LMB = chosen texture, RMB = back to the map default
-                self._stroke_plane = (self.map.texture_index(self.plane_texture) + 1
-                                      if left and self.plane_texture else 0)
+                if left and self.plane_texture == PLANE_SKY:   # sky has no floor: Floor tool skips
+                    self._stroke_plane = CEILING_SKY if self.tool == Tool.CEILING else None
+                else:
+                    self._stroke_plane = (self.map.texture_index(self.plane_texture) + 1
+                                          if left and self.plane_texture else 0)
             if event.modifiers() & Qt.KeyboardModifier.ShiftModifier:
                 self._rect_start = tile
                 self._show_rect_preview(tile, tile)

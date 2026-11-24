@@ -40,6 +40,7 @@ typedef struct {
     int wall_tex_id;
     int floor_tex_id;
     int ceiling_tex_id;
+    int sky_tex_id;      // panorama for open-sky tiles; -1 if no tile has open sky
 
     char exits[4][16];
 } Grid;

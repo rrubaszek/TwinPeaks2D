@@ -2,7 +2,7 @@ from pathlib import Path
 
 import pytest
 
-from tpmap.model import MapData, Sprite, SpriteType, TileType
+from tpmap.model import CEILING_SKY, MapData, Sprite, SpriteType, TileType
 from tpmap.txt_format import MapFormatError, format_map, load_map, parse_map, validate
 
 MAPS_DIR = Path(__file__).resolve().parents[2] / "maps"
@@ -134,6 +134,18 @@ def test_tile_floor_ceiling_roundtrip():
     assert "0:0:0.0:1:0" in text and "0:0:0.0:0:2" in text
     assert "0:0:0.0:0:0" not in text                      # defaults keep the short form
     assert parse_map(text) == m
+
+
+def test_tile_ceiling_sky():
+    m = MapData.new(3, 3)
+    m.tile(1, 1).ceiling_tex = CEILING_SKY
+    text = format_map(m)
+    assert "0:0:0.0:0:-1" in text and parse_map(text) == m
+    assert not any(i.error for i in validate(m))
+    m.tile(1, 1).ceiling_tex = -2                       # only -1 is special
+    assert any(i.error and "ceiling texture -2" in i.message for i in validate(m))
+    m.tile(1, 1).ceiling_tex, m.tile(1, 1).floor_tex = 0, CEILING_SKY   # no sky floor
+    assert any(i.error and "floor texture -1" in i.message for i in validate(m))
 
 
 def test_tile_floor_short_and_invalid():

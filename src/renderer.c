@@ -483,12 +483,16 @@ void render_sprites(CameraView* view, TextureManager* tm, const Grid* g, double 
 }
 
 // TODO: Implement specific textures via texture manager
-// Floor or ceiling texture of tile (tx, ty) (F2); the map default outside the map
-static const Texture* plane_texture(TextureManager* tm, const Grid* g, int tx, int ty, bool is_floor) {
-    if (tx < 0 || tx >= g->w || ty < 0 || ty >= g->h)
-        return texman_get(tm, is_floor ? g->floor_tex_id : g->ceiling_tex_id);
+// Floor or ceiling texture id of tile (tx, ty) (F2), CEILING_SKY for open sky (D5.8).
+// Outside the map: the default floor; the ceiling of the nearest edge tile (sky stays open).
+static int plane_tex_id(const Grid* g, int tx, int ty, bool is_floor) {
+    if (tx < 0 || tx >= g->w || ty < 0 || ty >= g->h) {
+        if (is_floor) return g->floor_tex_id;
+        tx = tx < 0 ? 0 : (tx >= g->w ? g->w - 1 : tx);
+        ty = ty < 0 ? 0 : (ty >= g->h ? g->h - 1 : ty);
+    }
     const Tile* t = &g->map[ty][tx];
-    return texman_get(tm, is_floor ? t->floor_tex_id : t->ceiling_tex_id);
+    return is_floor ? t->floor_tex_id : t->ceiling_tex_id;
 }
 
 void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
@@ -497,6 +501,18 @@ void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
     double rayDirY0 = view->dirY - view->planeY;
     double rayDirX1 = view->dirX + view->planeX;
     double rayDirY1 = view->dirY + view->planeY;
+
+    // Open sky: panorama column for each screen column from the ray angle, once per frame
+    const Texture* sky = texman_get(tm, g->sky_tex_id);   // NULL when the map has no open sky
+    int sky_u[SCREEN_WIDTH];
+    if (sky) {
+        for (int x = 0; x < SCREEN_WIDTH; x++) {
+            double cam = 2.0 * x / SCREEN_WIDTH - 1.0;
+            double a = atan2(view->dirY + view->planeY * cam, view->dirX + view->planeX * cam);
+            int u = (int)((a / (2 * M_PI) + 0.5) * sky->width);   // [-pi, pi] -> [0, width]
+            sky_u[x] = u < sky->width ? u : sky->width - 1;
+        }
+    }
 
     for (int y = 0; y < SCREEN_HEIGHT; y++) {
 
@@ -516,6 +532,9 @@ void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
         double floorY = view->posY + rowDistance * rayDirY0;
 
         Uint32* row = &framebuffer[y * SCREEN_WIDTH];   // y in [0, SCREEN_HEIGHT), no bounds check needed
+        // Panorama row: the top of the screen is the top of the sky, the horizon its bottom row
+        const Uint32* sky_row = (sky && !is_floor)
+            ? &sky->pixels[(y * sky->height / (SCREEN_HEIGHT / 2)) * sky->width] : NULL;
 
         // World position in 32.32 fixed point: integer part = tile, fraction = place in the tile.
         // 32 fraction bits keep the drift over a row far below one texel.
@@ -528,6 +547,7 @@ void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
         // Texture looked up only when the tile changes (a few times per row)
         int last_tx = 0, last_ty = 0;
         const Texture* tex = NULL;
+        bool is_sky = false;
         bool first = true;
 
         for (int x = 0; x < SCREEN_WIDTH; x++, fx += dfx, fy += dfy) {
@@ -537,10 +557,16 @@ void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g) {
 
             int tx = (int)(fx >> 32), ty = (int)(fy >> 32);   // arithmetic shift: floor
             if (first || tx != last_tx || ty != last_ty) {
-                tex = plane_texture(tm, g, tx, ty, is_floor);
+                int id = plane_tex_id(g, tx, ty, is_floor);
+                is_sky = id == CEILING_SKY;
+                tex = texman_get(tm, id);
                 last_tx = tx;
                 last_ty = ty;
                 first = false;
+            }
+            if (is_sky && sky_row) {   // no distance shading: the sky is far and lit
+                row[x] = sky_row[sky_u[x]];
+                continue;
             }
             if (tex == NULL) {
                 row[x] = shade_mul(0xFF333333, mul);

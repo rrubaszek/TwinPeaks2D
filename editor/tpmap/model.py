@@ -7,6 +7,8 @@ from enum import IntEnum
 
 NO_EXIT = "NULL"
 EXIT_COUNT = 4
+CEILING_SKY = -1          # Tile.ceiling_tex of an open-sky tile, as in src/map.c (D5.8)
+SKY_TEXTURE = "sky.png"   # its panorama, from helpers/generate_outdoor.py
 
 
 class TileType(IntEnum):
@@ -46,7 +48,7 @@ class Tile:
     texture_id: int = 0
     height: float = 0.0
     floor_tex: int = 0      # F2: 0 = map floor / ceiling texture, k = texture table entry k-1
-    ceiling_tex: int = 0
+    ceiling_tex: int = 0    # ... or CEILING_SKY = open sky
 
     @classmethod
     def of(cls, tile_type: TileType, texture_id: int = 0) -> Tile:

@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QDockWidget, QFileDialog, QLabel, QMainWindow, QMessageBox,
                                QScrollArea)
 
-from tpmap.model import TEXTURED_TILES, MapData
+from tpmap.model import CEILING_SKY, TEXTURED_TILES, MapData
 from tpmap.txt_format import MapFormatError, format_map, format_tile, load_map, validate
 
 from .canvas import MapCanvas
@@ -161,7 +161,8 @@ class MainWindow(QMainWindow):
         if t.type in TEXTURED_TILES:
             tex = m.textures[t.texture_id - 1] if 0 < t.texture_id <= len(m.textures) else \
                   f"{m.wall_texture} (default)" if t.texture_id == 0 else "invalid texture"
-        planes = "".join(f"  {what}: {m.textures[k - 1] if 0 < k <= len(m.textures) else 'invalid'}"
+        planes = "".join(f"  {what}: " + ("open sky" if what == "ceiling" and k == CEILING_SKY
+                                         else m.textures[k - 1] if 0 < k <= len(m.textures) else "invalid")
                          for what, k in (("floor", t.floor_tex), ("ceiling", t.ceiling_tex)) if k)
         self.status.setText(f"Tile ({x}, {y})  {t.type.name.lower()}  "
                             f"[{format_tile(t)}]  {tex}{planes}")

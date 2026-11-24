@@ -37,4 +37,8 @@
 #define WIND_GUST_K 0.6          // rad/tile; gusts move at SPEED/K ~ 1.3 tiles/s
 #define WIND_FLUTTER_SPEED 3.0   // rad/s of the fast per-sprite flutter
 
+// D5.8 open sky: tile ceiling field -1 (map.c); panorama drawn instead of the ceiling plane
+#define SKY_TEXTURE "sky.png"
+#define CEILING_SKY (-1)   // Tile.ceiling_tex_id of an open-sky tile (never a texture id)
+
 #endif // CONSTANTS_H

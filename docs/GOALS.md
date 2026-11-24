@@ -121,6 +121,16 @@ Kryterium: zero alokacji na stercie w pętli klatki.
     górnej krawędzi tej ściany (`wall_start[col]` z `raycaster`). Opcjonalnie niebo zamiast
     sufitu na mapach zewnętrznych.
     Kryterium: drzewo `scale 3` stojące za ścianą wystaje ponad nią.
+  - D5.8 `WIP` Niebo i ściółka (warunek wysokich drzew na mapach zewnętrznych)
+    - N1 `helpers/generate_outdoor.py`: `sky.png` (panorama 1024×256 na 360°, chmury, góry,
+      linia jodeł) i `forest_floor.png` (64×64 bez szwów: mech, igły, szyszki).
+    - N2–N3 Pole sufitu kafelka `-1` = otwarte niebo (`sky.png`): panorama przewijana z obrotem
+      kamery, bez przyciemniania odległością; poza mapą — rodzaj sufitu najbliższego kafelka.
+    - N4–N5 Edytor: sufit `-1` w formacie i opcja „Sky” w narzędziu Ceiling texture.
+    - N6 `map2`: niebo nad całą mapą, podłoga `forest_floor.png`.
+    - N7 = D5.7; N8 = pomiar (W8).
+    Kryterium: w `map2` nad lasem widać niebo, wysokie daglezje nie „przebijają” sufitu,
+    czas klatki w budżecie B0.5.
   - Opcjonalnie: 2–4 klatki animacji liści, opadające liście, mocniejsza mgła w oddali,
     `forest.jpeg` jako ściana „skraju lasu” za sprite'ami.
   Kryterium: scena z ≥ 200 drzewami kołysze się płynnie (drzewa niezsynchronizowane, widoczne

@@ -14,7 +14,7 @@ from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QComboBox, QDialog, QDia
 from tpmap.model import EXIT_COUNT, NO_EXIT, MapData, Sprite, SpriteType, TileType
 from tpmap.txt_format import MAX_EXIT_NAME, MAX_TEXTURE_NAME, Issue
 
-from .canvas import SPRITE_COLORS, TILE_COLORS, Tool, lowwall_height, sprite_below_top
+from .canvas import PLANE_SKY, SPRITE_COLORS, TILE_COLORS, Tool, lowwall_height, sprite_below_top
 
 MAX_MAP_SIDE = 256
 
@@ -100,6 +100,7 @@ class ToolPanel(QWidget):
         layout.addWidget(QLabel("Floor / ceiling texture:"))
         self.plane_texture = QComboBox()
         self.plane_texture.addItem("(map default)", None)
+        self.plane_texture.addItem("(open sky, ceiling only)", PLANE_SKY)
         for name in texture_names(textures_dir):
             self.plane_texture.addItem(name, name)
         self.plane_texture.setToolTip("Texture for the Floor / Ceiling tools (RMB = map default); "
@@ -108,7 +109,7 @@ class ToolPanel(QWidget):
 
         hint = QLabel(
             "<small><b>Paint:</b> LMB draw, RMB erase, Shift+drag rectangle<br>"
-            "<b>Floor/Ceiling:</b> LMB texture, RMB map default<br>"
+            "<b>Floor/Ceiling:</b> LMB texture, RMB map default; open sky = no ceiling<br>"
             "<b>Sprite:</b> LMB place/select, RMB delete, Alt = no snap<br>"
             "<b>Select:</b> drag to move, Del to delete<br>"
             "<b>View:</b> wheel zoom, MMB drag pan, Ctrl+0 fit</small>")

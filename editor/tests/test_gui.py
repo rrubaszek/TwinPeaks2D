@@ -7,9 +7,9 @@ from PySide6.QtCore import QEvent, QPoint, QPointF, Qt
 from PySide6.QtGui import QColor, QMouseEvent
 from PySide6.QtWidgets import QApplication, QFileDialog, QMessageBox
 
-from tpedit.canvas import CELL, Tool, sprite_below_top
+from tpedit.canvas import CELL, PLANE_SKY, Tool, sprite_below_top
 from tpedit.main_window import MAPS_DIR, MainWindow
-from tpmap.model import MapData, Sprite, SpriteType, TileType
+from tpmap.model import CEILING_SKY, MapData, Sprite, SpriteType, TileType
 from tpmap.txt_format import load_map, validate
 
 B = Qt.MouseButton
@@ -368,3 +368,12 @@ def test_floor_ceiling_tools(win):
     drag(win, tile_pos(win, 2, 3), tile_pos(win, 2, 3))
     assert (win.map.tile(2, 3).type, win.map.tile(2, 3).ceiling_tex) == (TileType.WALL, idx)
     assert win.canvas.tiles.plane is None
+
+    win.canvas.plane_texture = PLANE_SKY
+    win.canvas.set_tool(Tool.CEILING)
+    drag(win, tile_pos(win, 5, 5), tile_pos(win, 6, 5))
+    assert [win.map.tile(x, 5).ceiling_tex for x in (5, 6)] == [CEILING_SKY] * 2
+    assert "sky.png" not in win.map.textures                     # sky never joins the table
+    win.canvas.set_tool(Tool.FLOOR)
+    drag(win, tile_pos(win, 5, 5), tile_pos(win, 5, 5))
+    assert win.map.tile(5, 5).floor_tex == 0                      # no sky floor

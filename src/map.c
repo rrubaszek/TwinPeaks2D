@@ -73,6 +73,7 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
         fprintf(stderr, "%s: out of memory\n", filename);
         goto fail;
     }
+    bool has_sky = false;
     for(int i = 0; i < g->h; i++) {
         g->map[i] = calloc(g->w, sizeof(Tile));
         if (!g->map[i]) {
@@ -89,9 +90,10 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
                 fprintf(stderr, "%s: invalid tile at row %d, col %d\n", filename, i, j);
                 goto fail;
             }
-            // Textures: 0 = map default (wall / floor / ceiling), k >= 1 = texture table entry k-1
+            // Textures: 0 = map default (wall / floor / ceiling), k >= 1 = texture table entry k-1;
+            // ceiling -1 = open sky (D5.8)
             if (tex_id < 0 || tex_id > tex_count || floor_id < 0 || floor_id > tex_count
-                || ceil_id < 0 || ceil_id > tex_count) {
+                || ceil_id < -1 || ceil_id > tex_count) {
                 fprintf(stderr, "%s: tile at row %d, col %d: texture not in table (%s)\n",
                         filename, i, j, tok);
                 goto fail;
@@ -101,7 +103,19 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
             t->texture_id = tex_id == 0 ? g->wall_tex_id : tex_ids[tex_id - 1];
             t->height = height;
             t->floor_tex_id = floor_id == 0 ? g->floor_tex_id : tex_ids[floor_id - 1];
-            t->ceiling_tex_id = ceil_id == 0 ? g->ceiling_tex_id : tex_ids[ceil_id - 1];
+            t->ceiling_tex_id = ceil_id == -1 ? CEILING_SKY
+                              : ceil_id == 0 ? g->ceiling_tex_id : tex_ids[ceil_id - 1];
+            if (ceil_id == -1) has_sky = true;
+        }
+    }
+
+    // Open sky on any tile: load the panorama once for the map
+    g->sky_tex_id = -1;
+    if (has_sky) {
+        g->sky_tex_id = texman_load(tm, TEXTURE_PATH SKY_TEXTURE);
+        if (g->sky_tex_id < 0) {
+            fprintf(stderr, "%s: failed to load %s\n", filename, SKY_TEXTURE);
+            goto fail;
         }
     }
 

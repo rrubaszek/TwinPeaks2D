@@ -35,6 +35,8 @@ x y type texture scale collision_r [z [wind]]   jedna linia na sprite
 - `floor`, `ceiling` (opcjonalne, F2): tekstura podłogi i sufitu tego kafelka, numeracja jak
   `texture`: 0 = domyślna tekstura mapy (`floor` / `ceiling` z nagłówka), k ≥ 1 = pozycja k−1
   tabeli tekstur. Brak pól = 0. Można podać samo `floor` (`0:0:0.0:2` → sufit domyślny).
+  `ceiling` = −1 to otwarte niebo: zamiast płaszczyzny sufitu widać panoramę `sky.png`
+  (`helpers/generate_outdoor.py`), przewijaną z obrotem kamery; dotyczy tylko sufitu.
   Edytor zapisuje oba pola tylko, gdy któreś ≠ 0. Przykład: `0:0:0.0:3:0` — pusty kafelek
   z podłogą z pozycji 2 tabeli.
 
