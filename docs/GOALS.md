@@ -95,7 +95,7 @@ Kryterium: zero alokacji na stercie w pętli klatki.
     (`helpers/generate_trees.py`: proceduralna daglezja 64×64 i 64×192, `--seed` = inne drzewo).
   - D5.2 Wiele drzew: odrzucanie poza polem widzenia i za odległością, rysowanie od przodu do tyłu
     z buforem pokrycia (bez overdraw — ta sama idea co odłożone B1.4).
-  - D5.3 Wiatr — sprite'y zewnętrzne (drzewa, krzaki) kołyszą się delikatnie; wnętrza stoją.
+  - D5.3 `DONE` (W1–W4, W6, W7; W5 odłożone) Wiatr — sprite'y zewnętrzne (drzewa, krzaki) kołyszą się delikatnie; wnętrza stoją.
     - W1 Pole `float wind` w `Sprite` + parser: opcjonalne 8. pole linii sprite'a
       `x y type texture scale collision_r [z [wind]]` (0 = nieruchomy, 1 = drzewo, ~0.5 = krzak);
       opis w `docs/map-format.md`.
@@ -116,23 +116,65 @@ Kryterium: zero alokacji na stercie w pętli klatki.
   - D5.5 Edytor: pędzel „rozsyp drzewa” (gęstość, losowa skala); opcjonalnie parametry
     wiatru per mapa.
   - D5.6 Opcjonalnie: parametry wiatru per mapa (siła, kierunek) zamiast stałych — razem z D5.5.
-  - D5.7 `TODO` Drzewa wyższe niż ściany: sprite z `scale` > 1 i wysoką teksturą (64×192).
+  - D5.7 `DONE` (D5.8 N7) Drzewa wyższe niż ściany: sprite z `scale` > 1 i wysoką teksturą (64×192).
     Dziś sprite za bliższą ścianą znika w całej kolumnie (`z_buffer`); ma być rysowany powyżej
     górnej krawędzi tej ściany (`wall_start[col]` z `raycaster`). Opcjonalnie niebo zamiast
     sufitu na mapach zewnętrznych.
     Kryterium: drzewo `scale 3` stojące za ścianą wystaje ponad nią.
-  - D5.8 `WIP` Niebo i ściółka (warunek wysokich drzew na mapach zewnętrznych)
-    - N1 `helpers/generate_outdoor.py`: `sky.png` (panorama 1024×256 na 360°, chmury, góry,
-      linia jodeł) i `forest_floor.png` (64×64 bez szwów: mech, igły, szyszki).
-    - N2–N3 Pole sufitu kafelka `-1` = otwarte niebo (`sky.png`): panorama przewijana z obrotem
-      kamery, bez przyciemniania odległością; poza mapą — rodzaj sufitu najbliższego kafelka.
-    - N4–N5 Edytor: sufit `-1` w formacie i opcja „Sky” w narzędziu Ceiling texture.
-    - N6 `map2`: niebo nad całą mapą, podłoga `forest_floor.png`.
-    - N7 = D5.7; N8 = pomiar (W8).
-    Kryterium: w `map2` nad lasem widać niebo, wysokie daglezje nie „przebijają” sufitu,
-    czas klatki w budżecie B0.5.
-  - Opcjonalnie: 2–4 klatki animacji liści, opadające liście, mocniejsza mgła w oddali,
-    `forest.jpeg` jako ściana „skraju lasu” za sprite'ami.
+  - D5.8 `DONE` (kierunek zmieniony na plan H — D5.9) Niebo, ściółka, ściana skraju lasu
+    - N1 `DONE` `helpers/generate_outdoor.py`: `sky.png` (panorama 1024×256 na 360°, chmury,
+      góry, linia jodeł) i `forest_floor.png` (64×64 bez szwów: mech, igły, szyszki).
+    - N2–N3 `DONE` Sufit kafelka `-1` = otwarte niebo: `CEILING_SKY`, `Grid.sky_tex_id`
+      (`sky.png` wczytywane tylko, gdy mapa go używa); `render_floor_ceiling` rysuje panoramę
+      (kolumna z kąta promienia, `atan2` raz na kolumnę ekranu), bez przyciemniania; poza mapą
+      sufit najbliższego kafelka brzegowego (`plane_tex_id`).
+    - N4–N5 `DONE` Edytor: sufit `-1` (`CEILING_SKY`, walidacja, ostrzeżenie o braku `sky.png`),
+      pozycja „(open sky, ceiling only)” w narzędziu Ceiling texture [6].
+    - N6 `DONE` `map2`: niebo nad wszystkimi kafelkami, podłoga `forest_floor.png`.
+    - N7 `DONE` = D5.7: bliższa ściana zasłania sprite tylko poniżej `wall_start[col]`.
+    - N9 `DONE` Ściana skraju lasu `forest_edge.png` / `forest_edge2.png`
+      (`generate_outdoor.py edge [--seed N --name ...]`, złożona z daglezji `render_fir`),
+      nieprzezroczysta pod linią czubków.
+    - N10 `DONE` Przezroczysta góra ściany: `Texture.top_opaque` (pierwszy nieprzezroczysty wiersz
+      kolumny, liczony w `load_texture`); `raycaster` zaczyna ścianę od niego (`wall_start`), więc
+      nad czubkami widać niebo i sprite'y zza ściany. Działa dla każdej tekstury ściany.
+    - Stan przejściowy: `map2` ma ściany obrzeża `forest_edge*.png` — do zastąpienia w H4.
+      Ściana skraju lasu zostaje jako narzędzie (np. gęsty las wewnątrz mapy).
+    - Przeniesione: N8 (pomiar) → H5; N11 (mgła) → H2; N12 (`forest.jpeg`) → D5.10.
+  - D5.9 `TODO` Otwarty teren bez „pudełka” — **plan H, oficjalny kierunek od 2026-11-24**.
+    Na mapach zewnętrznych gracz nie widzi pionowej ściany: ziemia ciągnie się do horyzontu,
+    wyżej niebo z linią drzew w oddali; granica mapy jest niewidzialna, ale blokuje ruch.
+    Już działa: ruch poza mapę blokuje `is_wall` (`src/camera.c`), podłoga poza mapą = domyślna
+    podłoga mapy, sufit poza mapą = niebo z kafelka brzegowego (N3), linia drzew w panoramie.
+    Odrzucony wariant: ściana pomalowana „do połowy ziemia, wyżej niebo” — z bliska wygląda
+    jak plakat (ziemia bez perspektywy, panorama rozjeżdża się z obrazem na ścianie, szwy
+    w narożnikach).
+    - H1 Promień opuszczający mapę z kafelka z niebem nie rysuje ściany: `z_buffer` = nieskończoność,
+      kolumna bez ściany (`wall_start = wall_end = SCREEN_HEIGHT / 2`); niskie ściany po drodze
+      nadal rejestrowane. Mapy wnętrz bez zmian (kafelki brzegowe bez nieba). Dotyczy `cast_ray`
+      i `raycaster`; sprawdzić `render_low_walls` oraz N7 w `render_sprites` przy nieskończonym
+      `z_buffer`.
+    - H2 Podłoga do horyzontu + mgła w kolor horyzontu (dawne N11, część F3): na mapach z niebem
+      podłoga, ściany, niskie ściany i sprite'y w oddali zlewają się z kolorem dolnego wiersza
+      panoramy w tej samej kolumnie (`sky_u[x]`) zamiast czernieć; wypełnić wiersz horyzontu
+      (`p == 0` w `render_floor_ceiling`, dziś pomijany). Ścieżka gorąca: mieszanie z kolorem
+      zamiast samego mnożenia.
+    - H3 Nowy typ kafelka „granica” (np. `TILE_BARRIER = 5`): blokuje ruch (`is_tile_solid`),
+      niewidoczny, promień przez niego przechodzi (`cast_ray`); sprite'y mogą na nim stać.
+      Edytor: `TileType`, kolor, narzędzie, walidacja (bez ostrzeżenia „sprite inside a wall”),
+      `docs/map-format.md`.
+    - H4 Przebudowa `map2`: zamiast ścian obrzeża pas 3–4 kafelków granicy z daglezjami
+      (mapa powiększona), niebo nad całością.
+    - H5 Pomiar (dawne N8/W8, `/perf-measure`): podłoga zawsze ~pół ekranu, więcej drzew.
+      Najpierw naprawić `tools/bench/bench.c`: nie kompiluje się od W2 (`render_sprites`
+      ma czwarty parametr `time_s`, wywołania w liniach 46 i 93); dodać pozę dla `map2`.
+    Kryterium: w `map2` nie widać pionowej ściany; las ciągnie się za granicą, dalej ziemia
+    przechodzi płynnie w linię drzew na horyzoncie; nie da się wyjść poza granicę; czas
+    klatki w budżecie B0.5.
+  - D5.10 `TODO` (dawne N12) Usunięcie `forest.jpeg`: używa go jeszcze `map.txt` (7 ścian
+    w kolumnach 8–9 przy górnej krawędzi, pozycja 3 tabeli) — do decyzji, czym zastąpić;
+    potem plik z `maps/textures/`; w testach edytora to tylko nazwy (bez pliku).
+  - Opcjonalnie: 2–4 klatki animacji liści, opadające liście (mgła w oddali — D5.9 H2).
   Kryterium: scena z ≥ 200 drzewami kołysze się płynnie (drzewa niezsynchronizowane, widoczne
   podmuchy), czas klatki w budżecie B0.5.
 - D2 `DONE` Tekstury per kafelek — numer tekstury kafelka: 0 = domyślna tekstura ścian mapy,
@@ -204,5 +246,7 @@ Rytm: bloki tematyczne — kończymy blok, zanim zaczniemy następny.
 5. **E — systemy gry:** E1 → E2 → E3 → E4 (E5 po decyzji o tekście)
 6. **F — kierunek wizualny:** F1 (niezależne, można wcześniej) → F2 → F3 → F4 (po D1) → F5 → F6
 
-**Bieżąca kolejność (aktualizacja 2026-11-21):** D2, F5, D7 zrobione; narzędzia sprite'ów
-w edytorze (E4 v2) zrobione → F → E. D6 (koszt sprite'ów) później; A4/A5 — gdy autor je wybierze.
+**Bieżąca kolejność (aktualizacja 2026-11-24):** blok „las” (gałąź `visuals`): D5.3 wiatr,
+D5.7 wysokie drzewa, D5.8 niebo/ściółka/ściana skraju lasu zrobione → **D5.9 plan H**
+(H1 → H2 → H3 → H4 → H5) → D5.10 → dalej F → E. D6 (koszt sprite'ów) później;
+A4/A5 — gdy autor je wybierze.

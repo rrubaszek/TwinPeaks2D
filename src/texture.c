@@ -50,6 +50,20 @@ Texture* load_texture(const char* path) {
 
     SDL_FreeSurface(formatted_surface);
     SDL_FreeSurface(surface); // I think we need to free the original surface as well
+
+    // Transparent top of a wall texture (D5.8 forest edge): raycaster starts each column here
+    texture->top_opaque = malloc(texture->width * sizeof(int));
+    if (!texture->top_opaque) {
+        fprintf(stderr, "Out of memory loading texture %s\n", path);
+        free(texture->pixels);
+        free(texture);
+        return NULL;
+    }
+    for (int x = 0; x < texture->width; x++) {
+        int y = 0;
+        while (y < texture->height && !(texture->pixels[y * texture->width + x] >> 24)) y++;
+        texture->top_opaque[x] = y;
+    }
     return texture;
 }
 
@@ -57,6 +71,7 @@ Texture* load_texture(const char* path) {
 void free_texture(Texture* texture) {
     if (texture) {
         free(texture->pixels);
+        free(texture->top_opaque);
         free(texture);
     }
 }

@@ -7,6 +7,7 @@ typedef struct texture_s {
     int width;
     int height;
     Uint32* pixels;
+    int* top_opaque;   // per column: first row with alpha > 0 (height if none)
 
     char name[128];
 } Texture;

@@ -212,11 +212,17 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
         int line_height = (int)(SCREEN_HEIGHT / dist);
         if (line_height < 1) line_height = 1;
 
+        // Transparent top of the texture column (forest edge, D5.8): the wall starts at the first
+        // opaque row, so the sky and sprites behind the wall show above it. Rounded up, so the
+        // first drawn row never samples a transparent texel; 64-bit: line_height can be huge.
+        int tex_h = wall_texture->height;
         int wall_top   = (SCREEN_HEIGHT - line_height) / 2;
-        int draw_start = wall_top;
+        int draw_start = wall_top + (int)(((long long)wall_texture->top_opaque[texX] * line_height
+                                           + tex_h - 1) / tex_h);
         int draw_end   = (SCREEN_HEIGHT + line_height) / 2;
         if (draw_start < 0) draw_start = 0;
         if (draw_end > SCREEN_HEIGHT) draw_end = SCREEN_HEIGHT;
+        if (draw_start > draw_end) draw_start = draw_end;   // fully transparent column
         wall_start[i] = draw_start;
         wall_end[i]   = draw_end;
 
@@ -224,7 +230,6 @@ void raycaster(CameraView* view, TextureManager* tm, const Grid* g) {
         Uint32 mul = (Uint32)(shade * 256.0f);   // shade in [0, 1] -> [0, 256]
 
         // Texture rows per screen pixel; start offset skips the off-screen part
-        int tex_h = wall_texture->height;
         double step = (double)tex_h / line_height;
         double tex_pos = (draw_start - wall_top) * step;
 
@@ -441,7 +446,13 @@ void render_sprites(CameraView* view, TextureManager* tm, const Grid* g, double 
         }
 
         for (int col = draw_start_x; col < draw_end_x; col++) {
-            if (transformY >= z_buffer[col]) continue; // wall is closer
+            // A closer full wall hides the sprite only below its top edge (D5.7): the part of a
+            // tall sprite above the wall stays visible
+            int col_end = draw_end_y;
+            if (transformY >= z_buffer[col]) {
+                if (wall_start[col] <= draw_start_y) continue;   // whole sprite column hidden
+                col_end = wall_start[col];
+            }
 
             int texX = (int)((double)(col - left) * tex->width / sprite_width);
             const Uint32* src = &tex->pixels[texX];
@@ -449,7 +460,6 @@ void render_sprites(CameraView* view, TextureManager* tm, const Grid* g, double 
             Uint32* dst = &framebuffer[draw_start_y * SCREEN_WIDTH + col];
 
             // Low walls in front of the sprite hide its lower part
-            int col_end = draw_end_y;
             int clip = low_wall_clip(col, transformY, g);
             if (clip < col_end) col_end = clip;
 
