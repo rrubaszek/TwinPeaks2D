@@ -196,7 +196,7 @@ class SpriteItem(QGraphicsEllipseItem):
         b = self.label.boundingRect()
         self.label.setPos(-b.width() / 2, -b.height() / 2)
         self.setToolTip(f"{s.type.name.lower()} sprite\ntexture {s.texture_id}, scale {s.scale}, "
-                        f"collision {s.collision_r}, z {s.z}")
+                        f"collision {s.collision_r}, z {s.z}, wind {s.wind}")
         self.setPos(s.x * CELL, s.y * CELL)
         self._syncing = False
 

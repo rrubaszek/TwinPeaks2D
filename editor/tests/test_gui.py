@@ -96,6 +96,8 @@ def test_place_select_move_delete_sprite(win):
     # Edit in the panel updates the model
     win.sprite_panel.scale.setValue(0.5)
     assert s.scale == 0.5
+    win.sprite_panel.wind.setValue(0.5)
+    assert s.wind == 0.5
 
     # Move with the select tool
     win.canvas.set_tool(Tool.SELECT)

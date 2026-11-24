@@ -7,8 +7,9 @@ Layout:
     type:texture_id:height  x w, h rows  tile texture_id: 0 = wall texture, k = table entry k-1
     exit0 exit1 exit2 exit3            map path or NULL
     sprite_count
-    x y type texture_id scale collision_r [z]   one line per sprite, x y in tile units,
-                                       optional z = base height (written only when != 0)
+    x y type texture_id scale collision_r [z [wind]]   one line per sprite, x y in tile units,
+                                       optional z = base height, wind = sway strength
+                                       (z written when != 0 or when wind is written)
 """
 
 from __future__ import annotations
@@ -123,6 +124,8 @@ def parse_map(text: str) -> MapData:
         s = Sprite(sx, sy, stype, t.int(what), t.float(what), t.float(what))
         if t.has_on_line():                     # optional 7th field, like fgets in map.c
             s.z = t.float(what)
+            if t.has_on_line():                 # optional 8th field: wind
+                s.wind = t.float(what)
         sprites.append(s)
 
     return MapData(width, height, tile_size, wall, floor, ceiling, tiles, exits, sprites,
@@ -154,7 +157,11 @@ def format_map(m: MapData) -> str:
     for s in m.sprites:
         line = (f"{_num(s.x)} {_num(s.y)} {int(s.type)} {s.texture_id} "
                 f"{_num(s.scale)} {_num(s.collision_r)}")
-        lines.append(line + (f" {_num(s.z)}" if s.z != 0 else ""))
+        if s.wind != 0:
+            line += f" {_num(s.z)} {_num(s.wind)}"   # fields are positional: z goes first
+        elif s.z != 0:
+            line += f" {_num(s.z)}"
+        lines.append(line)
     return "\n".join(lines) + "\n"
 
 
@@ -212,6 +219,8 @@ def validate(m: MapData, textures_dir: Path | None = None) -> list[Issue]:
                 issues.append(Issue(False, f"sprite {i} at ({s.x}, {s.y}) is inside a wall"))
         if s.z < 0:
             issues.append(Issue(False, f"sprite {i} has negative height z"))
+        if s.wind < 0:
+            issues.append(Issue(False, f"sprite {i} has negative wind"))
         if not 0 <= s.texture_id < len(m.textures):
             issues.append(Issue(True, f"sprite {i}: texture index {s.texture_id} not in texture table"))
         if s.scale <= 0:

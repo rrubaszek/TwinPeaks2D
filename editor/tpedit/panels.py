@@ -273,6 +273,8 @@ class SpritePanel(QWidget):
         self.collision_r.setToolTip("Radius in tiles for interaction/blocking, 0 = none")
         self.z = self._dspin(0, 2, 0.05)
         self.z.setToolTip("Base height in wall units; 0.5 = on top of a 0.5 counter")
+        self.wind = self._dspin(0, 2, 0.1)
+        self.wind.setToolTip("Sway in the wind: 0 = still (indoors), 1 = tree, ~0.5 = bush")
         self.on_tile_top = QPushButton("On tile top")
         self.on_tile_top.setToolTip("Set height to the low wall under the sprite (0 elsewhere)")
         self.on_sprite_below = QPushButton("On sprite below")
@@ -292,9 +294,10 @@ class SpritePanel(QWidget):
         z_row.addWidget(self.on_tile_top)
         z_row.addWidget(self.on_sprite_below)
         form.addRow("Height (z)", z_row)
+        form.addRow("Wind", self.wind)
 
         self.type.currentIndexChanged.connect(self._commit)
-        for w in (self.x, self.y, self.scale, self.collision_r, self.z):
+        for w in (self.x, self.y, self.scale, self.collision_r, self.z, self.wind):
             w.valueChanged.connect(self._commit)
         self.on_tile_top.clicked.connect(self.put_on_tile_top)
         self.on_sprite_below.clicked.connect(self.put_on_sprite_below)
@@ -345,7 +348,7 @@ class SpritePanel(QWidget):
     def set_sprite(self, s: Sprite | None) -> None:
         self.sprite = None  # block _commit while filling widgets
         for w in (self.type, self.x, self.y, self.texture, self.scale, self.collision_r,
-                  self.z, self.on_tile_top, self.on_sprite_below, self.edit_texture):
+                  self.z, self.wind, self.on_tile_top, self.on_sprite_below, self.edit_texture):
             w.setEnabled(s is not None)
         if s is not None:
             self.info.setText("Selected sprite")
@@ -360,6 +363,7 @@ class SpritePanel(QWidget):
             self.scale.setValue(s.scale)
             self.collision_r.setValue(s.collision_r)
             self.z.setValue(s.z)
+            self.wind.setValue(s.wind)
         else:
             self.info.setText("No sprite selected")
         self.sprite = s
@@ -373,6 +377,7 @@ class SpritePanel(QWidget):
         s.scale = self.scale.value()
         s.collision_r = self.collision_r.value()
         s.z = self.z.value()
+        s.wind = self.wind.value()
         self.sprite_edited.emit(s)
 
 

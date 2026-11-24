@@ -98,6 +98,18 @@ def test_sprite_z_optional_field():
     assert parse_map(format_map(m)) == m
 
 
+def test_sprite_wind_optional_field():
+    m = parse_map(_with_sprite_lines("3\n1.5 1.5 0 0 1.0 0.0 0.0 1.0\n"
+                                     "2.5 2.5 0 0 1.0 0.0 0.5\n2.5 1.5 0 0 1.0 0.0\n"))
+    assert [(s.z, s.wind) for s in m.sprites] == [(0.0, 1.0), (0.5, 0.0), (0.0, 0.0)]
+    # wind forces z to be written (positional fields); still sprites keep the old format
+    assert format_map(m).endswith("1.5 1.5 0 0 1.0 0.0 0.0 1.0\n"
+                                  "2.5 2.5 0 0 1.0 0.0 0.5\n2.5 1.5 0 0 1.0 0.0\n")
+    assert parse_map(format_map(m)) == m
+    m.sprites[0].wind = -0.5
+    assert any("negative wind" in i.message for i in validate(m))
+
+
 def test_sprite_z_is_not_read_from_next_line():
     # 6 fields, then the next sprite line: its first number must not become z
     m = parse_map(_with_sprite_lines("2\n1.5 1.5 1 0 0.3 0.0\n2.5 2.5 0 0 1.0 0.0\n"))

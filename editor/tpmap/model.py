@@ -64,6 +64,7 @@ class Sprite:
     scale: float = 1.0       # 1.0 = person height
     collision_r: float = 0.0  # 0 = no collision
     z: float = 0.0           # base height in wall units: 0 = floor, 0.5 = on a 0.5 counter
+    wind: float = 0.0        # sway strength: 0 = still (indoors), 1 = tree, ~0.5 = bush
 
 
 @dataclass
