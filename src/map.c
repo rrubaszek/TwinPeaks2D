@@ -152,11 +152,14 @@ Grid* read_map_from_file(const char* filename, TextureManager* tm) {
             fprintf(stderr, "%s: sprite %d: texture index %d not in table\n", filename, i, t);
             goto fail;
         }
-        // Optional 7th field: base height z (old maps have 6 fields -> z = 0)
+        // Optional 7th/8th fields: base height z, wind sway (missing -> 0)
         char rest[64];
-        float z = 0.0f;
-        if (fgets(rest, sizeof rest, fptr) && sscanf(rest, "%f", &z) != 1) z = 0.0f;
+        float z = 0.0f, wind = 0.0f;
+        int n = fgets(rest, sizeof rest, fptr) ? sscanf(rest, "%f %f", &z, &wind) : 0;
+        if (n < 1) z = 0.0f;
+        if (n < 2) wind = 0.0f;
         g->sprites[i].z = z;
+        g->sprites[i].wind = wind;
         g->sprites[i].texture_id = tex_ids[t];
         g->sprites[i].type = (SpriteType)stype;
         g->sprites[i].visible = true;

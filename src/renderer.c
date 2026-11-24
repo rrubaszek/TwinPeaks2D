@@ -349,9 +349,20 @@ static int low_wall_clip(int col, double depth, const Grid* g) {
     return clip;
 }
 
+// Sway of a sprite at map position (x, y) at time t, in [-1, 1]. Two slow waves
+// travel across the map (gusts reach neighbouring trees one after another); a fast
+// flutter with a phase from the position keeps trees out of sync.
+static double wind_sway(double t, double x, double y) {
+    double phase = 3.0 * sin(x * 12.9898 + y * 78.233);   // pseudo-random per position
+    double gust = 0.6  * sin(WIND_GUST_SPEED * t - WIND_GUST_K * (x + 0.5 * y))
+                + 0.25 * sin(1.7 * WIND_GUST_SPEED * t - 2.3 * WIND_GUST_K * (y - 0.3 * x) + 1.3);
+    double flutter = 0.15 * sin(WIND_FLUTTER_SPEED * t + phase);
+    return gust + flutter;   // amplitudes sum to 1
+}
+
 // TODO: Implement specific textures for sprites
 // Draws sprites into the framebuffer, far to near, hidden behind walls via z_buffer.
-void render_sprites(CameraView* view, TextureManager* tm, const Grid* g) {
+void render_sprites(CameraView* view, TextureManager* tm, const Grid* g, double time_s) {
     if (g->sprite_count == 0) return; // sprite_order is NULL then; qsort requires non-NULL
 
     SpriteOrder* sprite_order = g->sprite_order; // pre-allocated per map, no per-frame alloc
@@ -389,6 +400,10 @@ void render_sprites(CameraView* view, TextureManager* tm, const Grid* g) {
         double transformX = sprite_order[i].transformX;
         double transformY = sprite_order[i].distance;
 
+        // Wind: signed top shift as a fraction of sprite width; 0 for still sprites
+        double sway = sprite->wind > 0.0f
+            ? WIND_AMPLITUDE * sprite->wind * wind_sway(time_s, sprite->x, sprite->y) : 0.0;
+
         // transformY is depth, transformX is horizontal offset
         int sprite_screen_x = (int)((SCREEN_WIDTH / 2) * (1 + transformX / transformY));
 
@@ -414,6 +429,17 @@ void render_sprites(CameraView* view, TextureManager* tm, const Grid* g) {
         double step = (double)tex->height / sprite_height;
         double tex_pos_start = (draw_start_y - top) * step;
 
+        // Wind: per-row horizontal shift in pixels, growing towards the top (base stays put)
+        int off[SCREEN_HEIGHT];
+        int step_x = 0;   // texture x per screen pixel, 16.16 fixed point
+        if (sway != 0.0) {
+            step_x = (int)(((int64_t)tex->width << 16) / sprite_width);
+            for (int y = draw_start_y; y < draw_end_y; y++) {
+                double k = (double)(bottom - y) / sprite_height;   // 1 at top, 0 at base
+                off[y - draw_start_y] = (int)lround(sway * sprite_width * k * k);
+            }
+        }
+
         for (int col = draw_start_x; col < draw_end_x; col++) {
             if (transformY >= z_buffer[col]) continue; // wall is closer
 
@@ -426,6 +452,22 @@ void render_sprites(CameraView* view, TextureManager* tm, const Grid* g) {
             int col_end = draw_end_y;
             int clip = low_wall_clip(col, transformY, g);
             if (clip < col_end) col_end = clip;
+
+            // Swaying sprite: texture column chosen per row (slower path, only wind > 0)
+            if (sway != 0.0) {
+                for (int y = draw_start_y; y < col_end; y++) {
+                    int texY = (int)tex_pos;
+                    if (texY >= tex->height) texY = tex->height - 1;
+                    tex_pos += step;
+                    int sx = col - left - off[y - draw_start_y];
+                    if (sx >= 0 && sx < sprite_width) {
+                        Uint32 color = tex->pixels[texY * tex->width + (int)(((int64_t)sx * step_x) >> 16)];
+                        if (color >> 24) *dst = shade_mul(color, mul);
+                    }
+                    dst += SCREEN_WIDTH;
+                }
+                continue;
+            }
 
             for (int y = draw_start_y; y < col_end; y++) {
                 int texY = (int)tex_pos;

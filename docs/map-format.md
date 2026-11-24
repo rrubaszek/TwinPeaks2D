@@ -10,7 +10,7 @@ count name...                        tabela tekstur mapy (0..MAX_TEXTURES nazw)
 type:texture:height[:floor:ceiling]  × w, h wierszy  kafelki
 exit0 exit1 exit2 exit3              ścieżka mapy (np. maps/map2.txt) albo NULL
 sprite_count
-x y type texture scale collision_r [z]   jedna linia na sprite
+x y type texture scale collision_r [z [wind]]   jedna linia na sprite
 ```
 
 ## Kafelki `type:texture:height[:floor:ceiling]`
@@ -44,7 +44,7 @@ Cztery pozycje; indeks to strona, po której gracz pojawia się w następnej map
 (0 = N, 1 = S, 2 = W, 3 = E). Znany błąd A5: `handle_exit` zawsze używa pierwszego
 nie-`NULL` wyjścia (kolejność 2, 3, 1, 0), niezależnie od kafelka.
 
-## Sprite'y `x y type texture scale collision_r [z]`
+## Sprite'y `x y type texture scale collision_r [z [wind]]`
 
 - `x y` — pozycja w kafelkach (2.5 = środek kafelka 2).
 - `type` — 0 statyczny, 1 interaktywny, 2 drzwi, 3 NPC (`SpriteType` w `include/sprite.h`).
@@ -53,7 +53,10 @@ nie-`NULL` wyjścia (kolejność 2, 3, 1, 0), niezależnie od kafelka.
   Szerokość z proporcji tekstury; piksele z alfą 0 są przezroczyste.
 - `collision_r` — promień w kafelkach na przyszłą interakcję/kolizję (gra jeszcze go nie używa).
 - `z` (opcjonalne, domyślnie 0) — wysokość podstawy w wysokościach ściany. Ciasto na ladzie
-  0.5 → `z = 0.5`. Edytor zapisuje `z` tylko, gdy ≠ 0.
+  0.5 → `z = 0.5`. Edytor zapisuje `z` tylko, gdy ≠ 0 albo gdy zapisuje `wind`.
+- `wind` (opcjonalne, domyślnie 0) — siła kołysania na wietrze: 0 = nieruchomy (wnętrza),
+  1 = drzewo, około 0.5 = krzak. Podstawa stoi w miejscu, kołysze się górna część sprite'a.
+  Pola są pozycyjne, więc przed `wind` musi stać `z` (także 0).
 - Przy równej głębokości (sprite'y w tym samym punkcie) niższy `z` rysowany jest pierwszy —
   ciasto na stole-sprite'cie leży na wierzchu.
 - Sprite'y są zasłaniane przez pełne ściany i przez bliższe niskie ściany.

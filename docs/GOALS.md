@@ -94,12 +94,27 @@ Kryterium: zero alokacji na stercie w pętli klatki.
   - D5.1 Przezroczystość sprite'ów (alfa z PNG zamiast czarnego tła BMP) — `DONE`; tekstury drzew — `TODO`.
   - D5.2 Wiele drzew: odrzucanie poza polem widzenia i za odległością, rysowanie od przodu do tyłu
     z buforem pokrycia (bez overdraw — ta sama idea co odłożone B1.4).
-  - D5.3 Czas w rendererze (suma `dt`) + wiatr: przesunięcie `texX` w poziomie, rosnące ku
-    koronie (`amplitude * wind(t, drzewo) * (1 - v)^2`), faza per drzewo z pozycji, podmuchy
-    jako suma 2–3 sinusów wędrująca przez mapę.
+  - D5.3 Wiatr — sprite'y zewnętrzne (drzewa, krzaki) kołyszą się delikatnie; wnętrza stoją.
+    - W1 Pole `float wind` w `Sprite` + parser: opcjonalne 8. pole linii sprite'a
+      `x y type texture scale collision_r [z [wind]]` (0 = nieruchomy, 1 = drzewo, ~0.5 = krzak);
+      opis w `docs/map-format.md`.
+    - W2 Czas gry: `world_time` (suma `dt`) w pętli `game.c`, przekazywany do `render_sprites`.
+    - W3 `wind_sway(t, x, y)` → [−1, 1]: 2–3 sinusy fali biegnącej przez mapę (podmuchy)
+      + faza per sprite z pozycji; stałe `WIND_*` w `constants.h`.
+    - W4 `render_sprites`: dla `wind > 0` tablica przesunięć per wiersz
+      `WIND_AMPLITUDE * wind * sway * szerokość * (1 - v)^2` (na stosie), `texX` liczone per piksel;
+      sprite'y z `wind = 0` bez zmian.
+    - W5 Poszerzenie zakresu kolumn i odrzucania o maksymalne przesunięcie (korona nie jest
+      obcinana na brzegu ekranu ani sprite'a).
+    - W6 Edytor: pole `wind` w modelu, odczyt/zapis (z `z`, gdy `wind ≠ 0`), walidacja `wind ≥ 0`,
+      test w `editor/tests/test_txt_format.py`; pole „Wind” w panelu Sprite.
+    - W7 Mapy: `wind` = 1 dla drzew w `maps/map2.txt`; wnętrza (`map.txt`) bez zmian.
+    Kryterium: drzewa na `map2` kołyszą się niezsynchronizowanie, podmuch widocznie
+    przechodzi przez las, podstawa stoi w miejscu, roślina w dinerze się nie rusza.
   - D5.4 Pomiar (profiler + callgrind, np. 200 drzew) względem budżetu klatki.
   - D5.5 Edytor: pędzel „rozsyp drzewa” (gęstość, losowa skala); opcjonalnie parametry
     wiatru per mapa.
+  - D5.6 Opcjonalnie: parametry wiatru per mapa (siła, kierunek) zamiast stałych — razem z D5.5.
   - Opcjonalnie: 2–4 klatki animacji liści, opadające liście, mocniejsza mgła w oddali,
     `forest.jpeg` jako ściana „skraju lasu” za sprite'ami.
   Kryterium: scena z ≥ 200 drzewami kołysze się płynnie (drzewa niezsynchronizowane, widoczne

@@ -55,11 +55,13 @@ int main(void) {
     }
 
     double last_ms = timer_now_ms();
+    double world_time = 0.0;   // seconds since start, drives the wind animation
     while (true) {
         double now_ms = timer_now_ms();
         double dt = (now_ms - last_ms) / 1000.0;
         last_ms = now_ms;
         if (dt > MAX_DT) dt = MAX_DT;
+        world_time += dt;
 
         prof_begin(PROF_FRAME);
 
@@ -126,7 +128,7 @@ int main(void) {
         render_low_walls(&view, game.texman, game.grid);
 
         prof_begin(PROF_SPRITES);
-        render_sprites(&view, game.texman, game.grid);
+        render_sprites(&view, game.texman, game.grid, world_time);
         prof_end(PROF_SPRITES);
 
         // Last: works on the finished image

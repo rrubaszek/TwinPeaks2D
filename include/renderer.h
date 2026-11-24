@@ -33,7 +33,7 @@ typedef struct {
 // segs may be NULL; then low walls are passed through without being recorded
 RaycastHit cast_ray(double posX, double posY, double rayDirX, double rayDirY, const Grid* g,
                     LowSeg* segs, int* seg_count);
-void render_sprites(CameraView* view, TextureManager* tm, const Grid* g);
+void render_sprites(CameraView* view, TextureManager* tm, const Grid* g, double time_s);
 void render_floor_ceiling(CameraView* view, TextureManager* tm, const Grid* g);
 void render_low_walls(CameraView* view, TextureManager* tm, const Grid* g);
 

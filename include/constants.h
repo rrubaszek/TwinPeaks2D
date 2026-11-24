@@ -31,4 +31,10 @@
 #define POSTFX_PIXEL 2     // pixel block size in screen pixels (2 -> 400x300 look)
 #define POSTFX_LEVELS 32   // colour levels per channel (32 = 15-bit colour, as on PS1)
 
+// D5.3 wind sway of sprites with wind > 0 (renderer.c)
+#define WIND_AMPLITUDE 0.05      // max top shift, as a fraction of sprite width (wind = 1)
+#define WIND_GUST_SPEED 0.8      // rad/s of the travelling gust waves
+#define WIND_GUST_K 0.6          // rad/tile; gusts move at SPEED/K ~ 1.3 tiles/s
+#define WIND_FLUTTER_SPEED 3.0   // rad/s of the fast per-sprite flutter
+
 #endif // CONSTANTS_H
